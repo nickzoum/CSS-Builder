@@ -1,0 +1,29 @@
+{
+    "manifest_version": 2,
+    "name": "CSS Builder",
+    "description": "This extension allows you to edit and save the style of your favourite webpages.",
+    "version": "2.5",
+    "browser_action": {
+        "default_icon": "icon.png",
+        "default_popup": "popup.html"
+    },
+    "permissions": [
+        "activeTab",
+        "storage",
+        "clipboardRead",
+        "clipboardWrite"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "content.css"
+            ]
+        }
+    ]
+}

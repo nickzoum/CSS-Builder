@@ -1,0 +1,22 @@
+.css-builder-selected-elements {
+    background-color: rgba(244, 168, 97, 0.25);
+    z-index: 999999999999999;
+    pointer-events: none;
+    position: absolute;
+    display: block;
+}
+
+.css-builder-selected-elements>.css-builder-selected-elements-inner {
+    background-color: rgba(105, 221, 86, 0.25);
+    display: block;
+    height: 100%;
+    width: 100%;
+}
+
+.css-builder-selected-elements>.css-builder-selected-elements-inner::before {
+    background-color: rgba(88, 104, 255, 0.25);
+    display: block;
+    height: 100%;
+    content: "";
+    width: 100%;
+}
