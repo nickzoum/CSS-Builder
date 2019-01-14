@@ -153,8 +153,7 @@ var hints = (function () {
     var defaultList = [
         "inherit",
         "initial",
-        "auto",
-        "none"
+		"unset"
     ];
 
     var display = [
@@ -179,30 +178,72 @@ var hints = (function () {
         "flex",
         "none"
     ];
-
-    return {
-        "padding-bottom": defaultList,
-        "margin-bottom": defaultList,
-        "padding-right": defaultList,
-        "border-width": defaultList,
-        "padding-left": defaultList,
-        "margin-right": defaultList,
-        "background-color": colors,
-        "padding-top": defaultList,
-        "margin-left": defaultList,
-        "margin-top": defaultList,
-        "border-bottom": colors,
-        "border-color": colors,
-        "border-right": colors,
-        "opacity": defaultList,
-        "outline": defaultList,
-        "padding": defaultList,
-        "border-left": colors,
-        "margin": defaultList,
+	
+	var position = [
+		"absolute",
+		"relative",
+		"static",
+		"sticky",
+		"fixed"
+	];
+	
+	var borderWidth = [
+		"medium",
+		"thick",
+		"thin"
+	];
+	
+	var auto = [
+		"auto"
+	];
+	
+	var none = [
+		"none"
+	];
+	
+	var size = [
+		"-webkit-fill-available",
+		"fit-content",
+		"max-content",
+		"min-content"
+	];
+	
+	var template = {		
         "background": colors,
-        "border-top": colors,
-        "display": display,
-        "border": colors,
-        "color": colors
-    };
+        "background-color": colors,
+        "border": colors.concat(borderWidth),
+        "border-bottom": colors.concat(borderWidth),
+        "border-color": colors,
+        "border-left": colors.concat(borderWidth),
+        "border-right": colors.concat(borderWidth),
+        "border-top": colors.concat(borderWidth),
+        "border-width": borderWidth,
+		"bottom": auto,
+        "color": colors,
+		"display": display,
+		"height": size,
+		"left": auto,
+        "margin": auto,
+        "margin-bottom": auto,
+        "margin-left": auto,
+        "margin-right": auto,
+        "margin-top": auto,
+        "opacity": undefined,
+        "outline": colors,
+        "padding": undefined,
+        "padding-bottom": undefined,
+        "padding-left": undefined,
+        "padding-right": undefined,
+        "padding-top": undefined,
+		"position": position,
+		"right": auto,
+		"top": auto,
+		"width": size
+	};
+	
+	(function (){
+		for (var property in template) template[property] = (template[property] || []).concat(defaultList);
+	})();
+
+    return template;
 })();

@@ -53,8 +53,7 @@
             var id = component.id || component.name;
             var tagName = component.tagName.toLowerCase();
             var classList = component.className.replace(/[ ]/g, '.');
-            `${tagName}${(id ? `#${id}` : classList ? `.${classList}` : "")}`
-            var selector = tagName + (id ? ("#" + id) : (classList ? ('.' + classList) : ''));
+            var selector = `${tagName}${(id ? `#${id}` : classList ? `.${classList}` : "")}`;
             return selector;
         } else { return "*"; }
     }
