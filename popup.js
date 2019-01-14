@@ -1,8 +1,16 @@
-"use strict";
+if (undefined) var chrome = require("./css-builder");
+if (undefined) var hints = require("./hints.js");
 
-(function () {
+(function (global, factory) {
+    "use strict";
+    if (typeof hints === "undefined" && typeof require === "function") hints = require("../hints.js");
+    if (typeof exports !== "undefined" && typeof module !== "undefined") module.exports = factory(exports || {});
+    else factory(global.Debug = {});
+})(this, function (exports) {
     const line = "\n"; const tab = "\t";
-    var tempUrl = ""; var url = "";
+    var hintDom = document.createElement("span");
+    hintDom.className = "hint";
+    var tempUrl = "", url = "";
 
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("DOMContentLoaded", onDomLoaded);
@@ -10,50 +18,11 @@
     document.getElementById("plus-style").addEventListener("click", onNewStyleClicked);
     document.getElementById("export").addEventListener("click", onExportClicked);
     document.getElementById("import").addEventListener("click", onImportClicked);
-    loop(5000).then(tempSave);
+    window.addEventListener("blur", tempSave);
 
-    /**
-     * @typedef {Object} Tab
-     * @prop {{muted: boolean}} mutedInfo
-     * @prop {boolean} autoDiscardable
-     * @prop {boolean} highlighted
-     * @prop {boolean} discarded
-     * @prop {boolean} incognito
-     * @prop {boolean} selected
-     * @prop {number} windowId
-     * @prop {boolean} audible
-     * @prop {boolean} pinned
-     * @prop {boolean} active
-     * @prop {string} status
-     * @prop {number} height
-     * @prop {number} index
-     * @prop {string} title
-     * @prop {number} width
-     * @prop {string} url
-     * @prop {number} id
-     */
-
-    /**
-     * Sets a timeout that calls a function
-     * @param {number} ms 
-     * @returns {Promise<number>}
-     */
-    function delay(ms) {
-        return new Promise(function (resolve) {
-            return setTimeout(resolve, ms);
-        });
-    }
-
-    /**
-     * Sets a timeout loop that calls a function
-     * @param {number} ms 
-     * @returns {Promise<number>}
-     */
-    function loop(ms) {
-        return new Promise(function (resolve) {
-            return setInterval(resolve, ms);
-        });
-    }
+    exports.saveLocal = saveLocal;
+    exports.getLocal = getLocal;
+    return exports;
 
     /**
      * @param {string} name
@@ -86,7 +55,7 @@
      * @returns {Promise<Tab>}
      */
     function getSelectedTab() {
-        return new Promise(function (resolve, reject) {
+        return new Promise(function (resolve) {
             chrome.tabs.getSelected(null, resolve);
         });
     }
@@ -97,7 +66,7 @@
      * @returns {Promise<string>}
      */
     function getLocal(name) {
-        return new Promise(function (resolve, reject) {
+        return new Promise(function (resolve) {
             chrome.storage.local.get(name, function (result) {
                 resolve(result[name] || "");
             });
@@ -128,7 +97,7 @@
      */
     function sendRequest(data) {
         data = data || { action: undefined };
-        return new Promise(function (resolve, reject) {
+        return new Promise(function (resolve) {
             getSelectedTab().then(function (tab) {
                 chrome.tabs.sendRequest(tab.id, data, resolve);
             });
@@ -147,19 +116,17 @@
 
     /** 
      * Deselects all the elements previously selected
-     * @param {MouseEvent} event
      * @returns {void}
      */
-    function freeSelect(event) {
+    function freeSelect() {
         sendRequest({ action: "freeSelect" });
     }
 
     /**
      * On content fully loaded
-     * @param {Event} event 
      * @returns {void}
      */
-    function onDomLoaded(event) {
+    function onDomLoaded() {
         getSelectedTab().then(function (tab) {
             var pathArray = tab.url.split("/");
             url = `${pathArray[0]}//${pathArray[2]}`;
@@ -197,7 +164,7 @@
      * @param {MouseEvent} event
      * @returns {void} 
      */
-    function onSaveClicked(event) {
+    function onSaveClicked() {
         updateStyle();
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             chrome.tabs.update(tabs[0].id, { url: tabs[0].url });
@@ -207,19 +174,17 @@
 
     /**
      * On new style clicked
-     * @param {MouseEvent} event
      * @returns {void} 
      */
-    function onNewStyleClicked(event) {
+    function onNewStyleClicked() {
         addStyle();
     }
 
     /**
      * On export clicked
-     * @param {MouseEvent} event
      * @returns {void} 
      */
-    function onExportClicked(event) {
+    function onExportClicked() {
         var selector = document.querySelector("#selector");
         var list = document.querySelectorAll(".style");
         selector.style.display = "initial"; var data = "";
@@ -229,7 +194,7 @@
         try {
             document.execCommand("copy");
         } catch (err) {
-            console.warn("Unable to copy to clipboard");
+            // console.warn("Unable to copy to clipboard");
         } finally {
             selector.style.display = "none";
             selector.value = "";
@@ -238,10 +203,9 @@
 
     /**
      * On Import clicked
-     * @param {MouseEvent} event 
      * @returns {void}
      */
-    function onImportClicked(event) {
+    function onImportClicked() {
         var selector = document.querySelector("#selector");
         selector.focus();
         try {
@@ -254,10 +218,10 @@
                     properties.pop(); addStyle(subList[0], properties);
                 }
             } else {
-                console.warn("Unable to read from clipboard");
+                // console.warn("Unable to read from clipboard");
             }
         } catch (err) {
-            console.warn("Unable to read from clipboard");
+            // console.warn("Unable to read from clipboard");
         } finally {
             selector.style.display = "none";
         }
@@ -297,10 +261,9 @@
 
     /**
      * On line input blur
-     * @param {FocusEvent} event
      * @returns {void} 
      */
-    function onInputReleased(event) {
+    function onInputReleased() {
         var hints = document.querySelectorAll(".line .hint");
         for (var hint of hints) hint.remove();
     }
@@ -498,14 +461,11 @@
      * @returns {void} 
      */
     function onKeyUp(event) {
-        var target = event.srcElement, text = target.value, parent = target.parentElement;
-        var hint = parent.getElementsByClassName("hint")[0], original = text;
-        if (!hint) {
-            hint = document.createElement("span");
-            parent.appendChild(hint);
-            hint.className = "hint";
-        }
-        hint.textContent = ""; text = text.trim();
+        var target = event.target, text = target.value.trim(), parent = target.parentElement, original = target.value;
+        if (hintDom.parentElement) hintDom.parentElement.removeChild(hintDom);
+        parent.appendChild(hintDom);
+        hintDom.textContent = "";
+        text = text.trim();
         if (text.length > 0) {
             if (text.includes(":")) {
                 var match = text.split(":")[1].trim();
@@ -515,25 +475,21 @@
                 for (var index = keys.length - 1; index > 0; index--) {
                     var key = keys[index];
                     if (regex.test(key) && match !== key) {
-                        var temp = `${before}: ${key}`;
-                        hint.textContent = `${original}${temp.substring(text.length)}`;
-                        index = 0;
+                        return hintDom.textContent = `${original}${`${before}: ${key}`.substring(text.length)}`;
                     }
                 }
             } else {
-                var match = text.split(":")[0].trim();
-                var regex = new RegExp(`^${match}`, "ig");
-                var keys = Object.keys(hints);
-                for (var index = keys.length - 1; index > 0; index--) {
-                    var key = keys[index];
+                match = text.split(":")[0].trim();
+                regex = new RegExp(`^${match}`, "ig");
+                keys = Object.keys(hints);
+                for (index = keys.length - 1; index > 0; index--) {
+                    key = keys[index];
                     if (regex.test(key) && match !== key) {
-                        var temp = `${key}`;
-                        hint.textContent = `${original}${temp.substring(text.length)}`;
-                        index = 0;
+                        return hintDom.textContent = `${original}${`${key}`.substring(text.length)}`;
                     }
                 }
             }
         }
     }
 
-})();
+});

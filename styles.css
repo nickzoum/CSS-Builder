@@ -1,11 +1,3 @@
-@font-face {
-	font-family: 'FontAwesome';
-	src: url('http://fontawesome.io/assets/font-awesome/fonts/fontawesome-webfont.eot?v=4.7.0');
-	src: url('http://fontawesome.io/assets/font-awesome/fonts/fontawesome-webfont.eot?#iefix&v=4.7.0') format('embedded-opentype'), url('http://fontawesome.io/assets/font-awesome/fonts/fontawesome-webfont.woff2?v=4.7.0') format('woff2'), url('http://fontawesome.io/assets/font-awesome/fonts/fontawesome-webfont.woff?v=4.7.0') format('woff'), url('http://fontawesome.io/assets/font-awesome/fonts/fontawesome-webfont.ttf?v=4.7.0') format('truetype'), url('http://fontawesome.io/assets/font-awesome/fonts/fontawesome-webfont.svg?v=4.7.0#fontawesomeregular') format('svg');
-	font-weight: normal;
-	font-style: normal;
-}
-
 .title {
 	display: block;
 }
@@ -221,7 +213,6 @@
 }
 
 #export, #import {
-	font: normal normal normal 14px/1 FontAwesome;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	display: inline-block;
@@ -229,12 +220,8 @@
 	font-size: inherit;
 }
 
-#export:before {
-	content: "\f0ea";
-}
-
-#import:before {
-	content: "\f0c7";
+#export>svg, #import>svg {
+	width: 0.875em;
 }
 
 #selector, #selector:focus, #selector:hover {
