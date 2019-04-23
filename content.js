@@ -1,9 +1,11 @@
 "use strict";
 (function () {
     var baseUrl = document.location.origin, component;
-    chrome.storage.local.get(baseUrl, onStyleLoaded);
     document.body.addEventListener("click", onNewTarget);
     chrome.extension.onRequest.addListener(chromeListener);
+    var lastStyle = undefined;
+    refresh();
+    return;
 
     /**
      * On document click function
@@ -37,10 +39,16 @@
      * @returns {void}
      */
     function chromeListener(request, sender, sendResponse) {
+        if (request.action === "getDOM") console.log({ dom: elemToStyle(component || document.activeElement) });
         if (request.action === "getDOM") sendResponse({ dom: elemToStyle(component || document.activeElement) });
         else if (request.action === "select") { freeSelect(); select(request.selector); }
         else if (request.action === "freeSelect") freeSelect();
+        else if (request.action === "refresh") refresh();
         else sendResponse({});
+    }
+
+    function refresh() {
+        chrome.storage.local.get(baseUrl, onStyleLoaded);
     }
 
     /**
@@ -87,7 +95,7 @@
     }
 
     /**
-     * DeInspects all previously selected elements
+     * Releases all previously inspected elements
      * @returns {void}
      */
     function freeSelect() {
@@ -101,9 +109,10 @@
      * @returns {HTMLStyleElement}
      */
     function newStyle(data) {
-        var style = document.createElement("style");
-        style.innerHTML = data;
-        return style;
+        if (lastStyle) lastStyle.remove();
+        lastStyle = document.createElement("style");
+        lastStyle.innerHTML = data;
+        return lastStyle;
     }
 
 })();

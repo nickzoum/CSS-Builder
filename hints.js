@@ -1,5 +1,6 @@
 var hints = (function () {
     var colors = [
+        "rgba(0,0,0,0)", "rgb(0,0,0)",
         "LightGoldenRodYellow",
         "MediumSpringGreen",
         "MediumAquaMarine",
@@ -146,10 +147,8 @@ var hints = (function () {
         "Plum",
         "Snow",
         "Teal",
-        "rgba",
         "Red",
-        "Tan",
-        "rgb"
+        "Tan"
     ];
 
     var defaultList = [
@@ -206,15 +205,19 @@ var hints = (function () {
         "min-content"
     ];
 
+    var combinations = {
+        colorBorderWidth: [...colors, ...borderWidth]
+    };
+
     var template = {
         "background": colors,
         "background-color": colors,
-        "border": colors.concat(borderWidth),
-        "border-bottom": colors.concat(borderWidth),
+        "border": combinations.colorBorderWidth,
+        "border-bottom": combinations.colorBorderWidth,
         "border-color": colors,
-        "border-left": colors.concat(borderWidth),
-        "border-right": colors.concat(borderWidth),
-        "border-top": colors.concat(borderWidth),
+        "border-left": combinations.colorBorderWidth,
+        "border-right": combinations.colorBorderWidth,
+        "border-top": combinations.colorBorderWidth,
         "border-width": borderWidth,
         "bottom": auto,
         "color": colors,
@@ -239,9 +242,8 @@ var hints = (function () {
         "width": size
     };
 
-    (function () {
-        for (var property in template) template[property] = (template[property] || []).concat(defaultList);
-    })();
+
+    Object.keys(template).forEach(property => template[property] = [...(template[property] || []), ...defaultList]);
 
     return template;
 })();

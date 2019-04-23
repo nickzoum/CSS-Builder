@@ -87,6 +87,7 @@
     /**
      * Safely deepclones an object
      * @param {{}} object object to be cloned
+     * @param {number} amount if valid number bigger than 1, it will instead return an array with that many copies
      * @returns {{} | Array<{}>} cloned object
      */
     function cloneObject(object, amount) {
@@ -112,10 +113,7 @@
      * @returns {Promise<void>} Promise that is called after the period passes
      */
     function delay(ms) {
-        /** @param {function(): void} resolve
-         *  @returns {number} */
-        function sleep(resolve) { return setTimeout(resolve, ms); }
-        return new Promise(sleep);
+        return new Promise(function (resolve) { setTimeout(resolve, ms); });
     }
 
     /**
@@ -368,7 +366,7 @@
      * @returns {string} 
      */
     function addLink(link) {
-        var descr = String(link).replace(/^(https?:[/]{0,2}|[w]{3}[.])/, "www.");
+        var descr = String(link).replace(/^(https?:[/]{0,2}|[w]{3}\.)/, "www.");
         if (!/^https?:[/]{2}/.test(link)) link = `http://${link}`;
         return `<a href=${link} target="_blank">${descr}</a>`;
     }

@@ -9,7 +9,7 @@ if (undefined) var { chrome } = require("./css-builder");
     var tempUrl = "", url = "";
 
     if (!chrome || !chrome.tabs) {
-        var chrome = {
+        chrome = {
             storage: {
                 local: {
                     set: function () { },
@@ -97,7 +97,7 @@ if (undefined) var { chrome } = require("./css-builder");
     function focus(styleIndex, lineIndex, start, end) {
         var dom = document.querySelector(`[ez-loop-index="styles[${styleIndex}].lines[${lineIndex}]"]>input`); dom.focus();
         dom.selectionStart = start || 0;
-        dom.selectionEnd = end || 0;
+        dom.selectionEnd = end || start || 0;
     }
 
     var keys = {
@@ -108,14 +108,12 @@ if (undefined) var { chrome } = require("./css-builder");
         38: "up",
         39: "right",
         40: "down",
-        46: "delete"
+        46: "delete",
+        83: "save"
     };
 
     var dto = {
-        styles: [{
-            lines: [""],
-            query: "*"
-        }],
+        styles: [],
         hint: "",
         showDebug: true
     };
@@ -144,36 +142,17 @@ if (undefined) var { chrome } = require("./css-builder");
             sendRequest({ action: "select", selector: query });
         },
         clearHint: function () {
-            dto.hint = "";
+            //dto.hint = "";
         },
         showHint: function (style, line) {
-            var text = style.lines[line], original = text;
+            var original = style.lines[line], text = original.trim();
             this.clearHint();
-            text = text.trim();
-            if (text.length > 0) {
-                if (text.includes(":")) {
-                    var match = text.split(":")[1].trim();
-                    var before = text.split(":")[0].trim();
-                    var regex = new RegExp(`^${match}`, "ig");
-                    var keys = hints[before] || [];
-                    for (var index = keys.length - 1; index > 0; index--) {
-                        var key = keys[index];
-                        if (regex.test(key) && match !== key) {
-                            return dto.hint = `${original}${`${before}: ${key}`.substring(text.length)}`;
-                        }
-                    }
-                } else {
-                    match = text.split(":")[0].trim();
-                    regex = new RegExp(`^${match}`, "ig");
-                    keys = Object.keys(hints);
-                    for (index = keys.length - 1; index > 0; index--) {
-                        key = keys[index];
-                        if (regex.test(key) && match !== key) {
-                            return dto.hint = `${original}${`${key}`.substring(text.length)}`;
-                        }
-                    }
-                }
-            }
+            if (!text) return;
+            var { 0: match, 1: after } = text.split(":");
+            if (after !== undefined) var keys = (hints[match] || []), likeParam = after;
+            else keys = Object.keys(hints), likeParam = match;
+            var result = keys.find(Functions.createFunction(filterHints, likeParam = trimText(likeParam)));
+            if (result) dto.hint = `${original}${result.substring(likeParam.length)}`;
         },
         onKeyDown: function (style, index, event) {
             if (actions[keys[event.keyCode] || "empty"](style, index, event.target.selectionStart, event.target.selectionEnd, event.target.value)) {
@@ -188,14 +167,12 @@ if (undefined) var { chrome } = require("./css-builder");
             else dto.styles[style].lines[0] = "";
         },
         saveAll: function (event) {
-            if (event.ctrlKey && event.keyCode === 83) updateStyle();
+            if (event.ctrlKey && keys[event.keyCode] === "save") this.saveAndRefresh();
         },
         saveAndRefresh: function () {
-            updateStyle();
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                chrome.tabs.update(tabs[0].id, { url: tabs[0].url });
+            updateStyle().then(function () {
+                sendRequest({ action: "refresh" });
             });
-            tempSave(); window.close();
         },
         export: function () {
             var data = dto.styles.map(getStyleText).join("") || "";
@@ -242,20 +219,26 @@ if (undefined) var { chrome } = require("./css-builder");
     /**
      * @param {string} name
      * @param {any} data
-     * @returns {void}
+     * @returns {Promise}
      */
     function saveLocal(name, data) {
-        var result = {}; result[name] = data;
-        chrome.storage.local.set(result);
+        return new Promise(function (resolve) {
+            var result = {}; result[name] = data;
+            chrome.storage.local.set(result, resolve);
+        });
     }
 
     /**
      * Creates a style text and saves it
-     * @returns {void}
+     * @returns {Promise}
      */
     function updateStyle() {
-        var data = dto.styles.map(getStyleText).join("") || "";
-        saveLocal(tempUrl, data); saveLocal(url, data);
+        return new Promise(function (resolve) {
+            var localSaved = false, tempSaved = false;
+            var data = dto.styles.map(getStyleText).join("") || "";
+            saveLocal(tempUrl, data).then(function () { localSaved = true; if (tempSaved) resolve(); })
+            saveLocal(url, data).then(function () { tempSaved = true; if (localSaved) resolve(); });
+        });
     }
 
     function tempSave() {
@@ -332,8 +315,7 @@ if (undefined) var { chrome } = require("./css-builder");
                         var properties = subList[1] ? subList[1].split(";") : ["", ""];
                         properties.pop(); addStyle(subList[0], properties);
                     }
-                    //TODO Uncomment
-                    //if (!subList) addStyle();
+                    if (!subList) addStyle();
                 });
             });
         });
@@ -348,7 +330,7 @@ if (undefined) var { chrome } = require("./css-builder");
     function addStyle(selector, properties) {
         dto.styles.push({
             lines: properties || [""],
-            query: typeof selector === "string" ? selector : "*"
+            query: typeof selector === "string" ? selector || "*" : "*"
         });
     }
 
@@ -359,5 +341,15 @@ if (undefined) var { chrome } = require("./css-builder");
      */
     function trimText(text) {
         return typeof text === "string" ? text.trim() : text;
+    }
+
+    /**
+     * 
+     * @param {string} key 
+     * @param  {...Array<string>} params
+     * @returns {boolean} 
+     */
+    function filterHints(key, ...params) {
+        return key.startsWith(params.pop());
     }
 });

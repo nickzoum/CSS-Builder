@@ -42,6 +42,8 @@ if (undefined) var { Functions, Http } = require("../ez");
         "ez-blur": "blur"
     };
 
+    const ignoredAttributes = ["name", "ez-loop", "ez-if"];
+
     const variableTypes = ["var", "const", "let"];
 
     const valueTags = ["BUTTON", "INPUT", "PROGRESS"];
@@ -105,7 +107,7 @@ if (undefined) var { Functions, Http } = require("../ez");
             var matches = [];
             for (var text of Functions.toList(dom.childNodes)) {
                 if (text.nodeType === 3) {
-                    var match = text.textContent.match(/\{.*\}/g);
+                    var match = text.textContent.match(/\{.+\}/g);
                     if (match) {
                         dom.insertBefore(newComment(text), text);
                         matches = matches.concat(match.map(removeSurroundingBrackers).map(removePrefixes));
@@ -113,6 +115,18 @@ if (undefined) var { Functions, Http } = require("../ez");
                 }
             }
             if (matches.length) dom.setAttribute("ez-has-text", matches.join(" "));
+        }
+        // Sets up bindings in attributes
+        for (dom of Functions.querySelectorAll(container, "*")) {
+            matches = [];
+            for (var attr of dom.attributes) {
+                if (!attributes[attr.name] && !attributesTernary[attr.name] && !ignoredAttributes.includes(attr.name)) {
+                    if (/\{.+\}/g.test(dom.getAttribute(attr.name))) {
+                        matches.push(`${attr.name}=${dom.getAttribute(attr.name)}`);
+                    }
+                }
+            }
+            if (matches.length) dom.setAttribute("ez-has-binding", matches.join(";"));
         }
         // Set up loops
         for (dom of Functions.toList(container.querySelectorAll("[ez-loop]")).reverse()) {
@@ -122,15 +136,6 @@ if (undefined) var { Functions, Http } = require("../ez");
             if (!loopingTypes[loopType]) throw Error(`Unrecognised looping type: '${loopType}', valid types include: ${Object.keys(loopingTypes).join(", ")}`);
             if (dom.childElementCount !== 1) wrapContent(dom);
             replaceContentWith(dom, newComment(dom));
-        }
-        // Sets up bindings in attributes
-        // TODO Fix
-        for (dom of Functions.querySelectorAll(container, "*")) {
-            for (var attr of dom.attributes) {
-                if (attr.name !== "ez-has-binding" && /\{.+\}/.test(dom.getAttribute(attr.name))) {
-                    dom.setAttribute("ez-has-binding", `${dom.getAttribute("ez-has-binding") || ""}${attr.name}(${dom.getAttribute(attr.name)});`);
-                }
-            }
         }
         return container;
     }
@@ -177,6 +182,9 @@ if (undefined) var { Functions, Http } = require("../ez");
                 });
                 updateProperties(manager.values, manager, "");
             }
+        }
+        for (dom of Functions.querySelectorAll(manager.container, "[ez-loop]")) {
+            if (!isElementParented(dom, manager.container)) loopFor(dom, manager, "length");
         }
         updateDom(manager);
         var propertyListener = Functions.createFunction(htmlUpdateProperty, manager);
@@ -237,11 +245,8 @@ if (undefined) var { Functions, Http } = require("../ez");
      */
     function updateDom(manager, property) {
         var container = manager.container, querySelectorAll = Functions.querySelectorAll, like = property ? `*="${property}"` : "";
-        for (var dom of querySelectorAll(container, `[ez-loop${like}`)) {
-            if (!isElementParented(dom, container)) loopFor(dom, manager, property);
-        }
         for (var key in attributesTernary) {
-            for (dom of querySelectorAll(container, `[${key}${like}]`)) {
+            for (var dom of querySelectorAll(container, `[${key}${like}]`)) {
                 if (!isElementParented(dom, container)) {
                     dom.setAttribute(attributesTernary[key], resolveTernary(dom.getAttribute(key), manager));
                 }
@@ -254,8 +259,10 @@ if (undefined) var { Functions, Http } = require("../ez");
         }
         for (dom of querySelectorAll(container, `[ez-has-binding${like}]`)) {
             if (!isElementParented(dom, container)) {
-                for (var attr of dom.attributes) {
-                    dom.setAttribute(attr.name, getAttributeValue(dom, attr.name, manager.values, manager.scope));
+                for (var attribute of dom.getAttribute("ez-has-binding").split(";")) {
+                    var { 0: attributeName, 1: attributeText } = attribute.split("=");
+                    dom.setAttribute(attributeName, attributeText);
+                    dom.setAttribute(attributeName, getAttributeValue(dom, attributeName, manager));
                 }
             }
         }
@@ -263,11 +270,11 @@ if (undefined) var { Functions, Http } = require("../ez");
             if (!isElementParented(dom, container)) {
                 for (var text of dom.childNodes) {
                     if (text.nodeType === 8 && !text.nextSibling) {
-                        text.parentElement.appendChild(newText(getAttributeValue(text, ":text", manager.values)));
+                        text.parentElement.appendChild(newText(getAttributeValue(text, ":text", manager)));
                     } else if (text.nodeType === 8 && text.nextSibling.nodeType !== 3) {
-                        text.parentElement.insertBefore(newText(getAttributeValue(text, ":text", manager.values)), text.nextSibling);
+                        text.parentElement.insertBefore(newText(getAttributeValue(text, ":text", manager)), text.nextSibling);
                     } else if (text.nodeType === 3 && text.previousSibling && text.previousSibling.nodeType === 8 && text.previousSibling.textContent) {
-                        text.textContent = getAttributeValue(text.previousSibling, ":text", manager.values);
+                        text.textContent = getAttributeValue(text.previousSibling, ":text", manager);
                     }
                 }
             }
@@ -292,8 +299,12 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @returns {void}
      */
     function htmlUpdateProperty(event, manager) {
-        var container = getPropertyValueContainer(event.target.getAttribute("name"), manager.values, {});
-        if (container.container[container.index] !== event.target.value) container.container[container.index] = event.target.value;
+        var propertyPath = event.target.getAttribute("name").trim();
+        if (propertyPath.startsWith("!")) var negate = true;
+        if (negate) propertyPath = propertyPath.substring(1).trim();
+        var container = getPropertyValueContainer(propertyPath, manager.values, {});
+        var result = getValue(event.target); result = negate ? !result : result;
+        if (container.container[container.index] !== result) container.container[container.index] = result;
     }
 
     /**
@@ -330,10 +341,11 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @returns {boolean} whether the value was set properly
      */
     function setProxy(target, property, value, receiver, manager, propertyPath, skipUpdates) {
+        if (property === "hint") return;
         if (!skipUpdates) {
             if (property === Symbol.for("__isProxy")) throw new Error("You cannot set the value of '__isProxy'");
             if (property === Symbol.for("__target")) throw new Error("You cannot set the value of '__target'");
-            if (target[property] === value && typeof target[Symbol.iterator] !== "function") {
+            if (target[property] === value && typeof target[Symbol.iterator] !== "function" && isProxy(target)) {
                 return true;
             }
             target[property] = value;
@@ -470,11 +482,14 @@ if (undefined) var { Functions, Http } = require("../ez");
      */
     function getPropertyValue(propertyPath, values, scope) {
         propertyPath = (propertyPath || "").trim();
+        if (propertyPath.startsWith("!")) var negate = true;
+        if (negate) propertyPath = propertyPath.substring(1).trim();
         if (propertyPath.startsWith("*")) propertyPath = propertyPath.substring((propertyPath.indexOf("*.") + 1 || 0) + 1).trim();
         if (!propertyPath) return values;
         var container = getPropertyValueContainer(propertyPath, values, scope || {});
         if (!container.container) throw Error(`Invalid property ${propertyPath}`);
-        return container.container[container.index];
+        var result = container.container[container.index];
+        return negate ? !result : result;
     }
 
     /**
@@ -499,12 +514,11 @@ if (undefined) var { Functions, Http } = require("../ez");
      * Converts the bindings in the content of an attribute 
      * @param {HTMLElement} element html element containing the attribute
      * @param {string} name name of attribute
-     * @param {{}} values object containing values
-     * @param {{}} scope object with temporary variables
+     * @param {ViewManager} manager the view manager
      * @returns {string} converted content
      */
-    function getAttributeValue(element, name, values, scope) {
-        return getElementAttribute(element, name).replace(/\{((?:\w|[.[\]])*)\}/g, Functions.createFunction(replaceAttributeValue, values, scope));
+    function getAttributeValue(element, name, manager) {
+        return getElementAttribute(element, name).replace(/\{(.*)\}/g, Functions.createFunction(replaceAttributeValue, manager));
     }
 
     /**
@@ -571,14 +585,10 @@ if (undefined) var { Functions, Http } = require("../ez");
         switch (firstItem) {
             case cleanParameterDefaults[firstItem] ? firstItem : null:
                 return cleanParameterDefaults[firstItem];
-            case firstItem.startsWith("$") ? firstItem : null:
-                if (firstItem === "$") return result.length - 1 ? getPropertyValue(result.splice(1).join("."), event) : event;
-                var wrapper = getPropertyValueContainer(param.substring(1), manager.values, manager.scope);
-                return wrapper.container ? wrapper.container[wrapper.index] : getPropertyValue(firstItem.substring(1), manager.values, manager.scope);
+            case "$":
+                return result.length - 1 ? getPropertyValue(result.splice(1).join("."), event) : event;
             case "this":
                 return result[1] ? dom.getAttribute(result[1]) : dom;
-            case "value":
-                return dom.value;
             default:
                 return getPropertyValue(param, manager.values, manager.scope);
         }
@@ -616,7 +626,7 @@ if (undefined) var { Functions, Http } = require("../ez");
                 }
                 for (var dom of Functions.querySelectorAll(newChild, "[ez-loop]")) {
                     if (!isElementParented(dom, newChild)) {
-                        loopFor(dom, newScope, dom.getAttribute("ez-loop").split(" ")[3]);
+                        loopFor(dom, newScope, "length");
                     }
                 }
             }
@@ -640,13 +650,6 @@ if (undefined) var { Functions, Http } = require("../ez");
         var { 1: itemName, 2: loopType, 3: listName } = container.getAttribute("ez-loop").split(" ");
         var list = loopingTypes[loopType](getPropertyValue(listName, manager.values, manager.scope));
         if (path === listName) var propertyFound = property;
-        else if (listName.startsWith(path)) {
-            if (property == 1) console.log(listName, ...arguments);
-        }
-        else if (path.startsWith(listName)) {
-            if (property == 1) console.log(listName, ...arguments);
-            //propertyFound = property;
-        }
         if (typeof propertyFound !== "undefined" && isNaN(propertyFound - 0)) return;
         for (var child of container.children) {
             var index = child.getAttribute("ez-loop-index");
@@ -695,7 +698,9 @@ if (undefined) var { Functions, Http } = require("../ez");
      */
     function setValue(dom, value) {
         if (typeof value === "undefined") value = null;
-        dom[valueTags.includes(dom.tagName) ? "value" : "textContent"] = value;
+        if (!valueTags.includes(dom.tagName)) dom.textContent = value;
+        else if (dom.type === "checkbox") dom.checked = !!value;
+        else dom.value = value;
     }
 
     /**
@@ -704,7 +709,9 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @returns {string} the text/value of the element
      */
     function getValue(dom) {
-        return dom[valueTags.includes(dom.tagName) ? "value" : "textContent"];
+        if (!valueTags.includes(dom.tagName)) return dom.textContent;
+        else if (dom.type === "checkbox") return dom.checked;
+        else return dom.value;
     }
 
     /**
@@ -862,12 +869,11 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @param {string} match matched parameter of regex
      * @param {number} index unused parameter from regex result
      * @param {string} attr unused parameter from regex result
-     * @param {{}} values object containing values 
-     * @param {{}} scope object with temporary variables 
+     * @param {ViewManager} manager the view manager
      * @returns {string} the value of the attribute in string form
      */
-    function replaceAttributeValue(fullMatch, match, index, attr, values, scope) {
-        var result = getPropertyValue(match, values, scope);
+    function replaceAttributeValue(fullMatch, match, index, attr, manager) {
+        var result = /\?/.test(match) ? resolveTernary(match, manager) : getPropertyValue(match, manager.values, manager.scope);
         return typeof result === "object" ? JSON.stringify(result) : result;
     }
 

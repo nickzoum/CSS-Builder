@@ -189,40 +189,36 @@
 	width: 320px;
 }
 
-#export {
-	position: fixed;
-	height: 20px;
-	opacity: 0.2;
-	width: 20px;
-	right: 0px;
-	padding: 0;
-	top: 0;
-}
 
-#import {
-	position: fixed;
-	height: 20px;
-	opacity: 0.2;
-	right: 25px;
-	width: 20px;
-	padding: 0;
-	top: 0;
-}
-
-#export:hover {
-	opacity: 1;
-}
-
-#import:hover {
-	opacity: 1;
-}
-
-#export, #import {
+#export, #import, #toggle-debug {
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	display: inline-block;
 	text-rendering: auto;
 	font-size: inherit;
+	position: fixed;
+	height: 20px;
+	opacity: 0.2;
+	width: 20px;
+	padding: 0;
+	margin: 0;
+	top: 0;
+}
+
+#export {
+	right: 0px;
+}
+
+#import {
+	right: 25px;
+}
+
+#toggle-debug {
+	right: 50px;
+}
+
+#export:hover, #import:hover, #toggle-debug:hover {
+	opacity: 1;
 }
 
 #export>svg, #import>svg {
