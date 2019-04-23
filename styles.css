@@ -1,4 +1,6 @@
 .title {
+	font-family: "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
+	font-size: 15px;
 	display: block;
 }
 
@@ -57,10 +59,13 @@
 }
 
 .panel-heading {
+	border: none;
 	border-bottom: 1px solid transparent;
 	border-top-right-radius: 3px;
 	border-top-left-radius: 3px;
 	background-color: #f5f5f5;
+	width: calc(100% - 30px);
+	box-sizing: content-box;
 	border-color: #ddd;
 	padding: 6px 15px;
 	color: #333;

@@ -1,5 +1,4 @@
-if (undefined) var chrome = require("./css-builder");
-if (undefined) var hints = require("./hints.js");
+if (undefined) var { chrome } = require("./css-builder");
 
 (function (global, factory) {
     "use strict";
@@ -7,21 +6,194 @@ if (undefined) var hints = require("./hints.js");
     if (typeof exports !== "undefined" && typeof module !== "undefined") module.exports = factory(exports || {});
     else factory(global.Debug = {});
 })(this, function (exports) {
-    const line = "\n"; const tab = "\t";
-    var hintDom = document.createElement("span");
-    hintDom.className = "hint";
     var tempUrl = "", url = "";
+
+    if (!chrome || !chrome.tabs) {
+        var chrome = {
+            storage: {
+                local: {
+                    set: function () { },
+                    get: function () {
+                        arguments[1]("");
+                    }
+                }
+            },
+            tabs: {
+                getSelected: function () {
+                    arguments[1]({ id: 1, url: "" });
+                },
+                sendRequest: function () {
+                    return new Promise(function (res) {
+                        res({ dom: "*" });
+                    });
+                },
+                query: function () { }
+            }
+        };
+    }
 
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("DOMContentLoaded", onDomLoaded);
     document.getElementById("save").addEventListener("click", onSaveClicked);
-    document.getElementById("plus-style").addEventListener("click", onNewStyleClicked);
+    document.getElementById("plus-style").addEventListener("click", addStyle);
     document.getElementById("export").addEventListener("click", onExportClicked);
     document.getElementById("import").addEventListener("click", onImportClicked);
     window.addEventListener("blur", tempSave);
 
+    var actions = {
+        "backspace": function (style, index, start, end, text) {
+            if (start === end && !end && index) {
+                dto.styles[style].lines[index - 1] += dto.styles[style].lines.splice(index, 1);
+                focus(style, index1 - 1, Infinity, Infinity);
+                return true;
+            }
+        },
+        "tab": function (style, index, start, end, text) {
+            dto.styles[style].lines[index] = dto.hint ? dto.hint : `${text.substring(0, start)}\t${text.substring(start)}`;
+            focus(style, index, start + 1, end + 1);
+            return true;
+        },
+        "enter": function (style, index, start, end, text) {
+            dto.styles[style].lines.splice(index, 0, text.substring(start));
+            dto.styles[style].lines[index] = dto.styles[style].lines[index].substring(0, start);
+            focus(style, index1 + 1, 0, 0);
+            return true;
+        },
+        "left": function (style, index, start, end, text) {
+            if (!start && index) {
+                focus(style, index - 1, Infinity, Infinity);
+                return true;
+            }
+        },
+        "up": function (style, index, start, end, text) {
+            if (index) {
+                focus(style, index - 1, start, end);
+                return true;
+            }
+        },
+        "right": function (style, index, start, end, text) {
+            if (end === text.length && dto.styles[style].lines.length > index + 1) {
+                focus(style, index + 1, 0, 0);
+                return true;
+            }
+        },
+        "down": function (style, index, start, end, text) {
+            if (dto.styles[style].lines.length > index + 1) {
+                focus(style, index + 1, start, end);
+                return true;
+            }
+        },
+        "delete": function (style, index, start, end, text) {
+            if (start === end && end === text.length && dto.styles[style].lines.length > index + 1) {
+                dto.styles[style].lines[index] += dto.styles[style].lines.splice(index + 1, 1);
+                return true;
+            }
+        },
+        "empty": function () { return false; }
+    };
+
+    /**
+     * 
+     * @param {HTMLInputElement} dom 
+     * @param {number} styleIndex
+     * @param {number} lineIndex
+     * @param {number} [start=0]
+     * @param {number} [end=0] 
+     */
+    function focus(styleIndex, lineIndex, start, end) {
+        var dom = document.querySelector(`[ez-loop-index="styles[${styleIndex}].lines[${lineIndex}]"]`), size = dom.value.length;
+        dom.focus();
+        dom.selectionStart = start === Infinity ? size : start || 0;
+        dom.selectionEnd = end === Infinity ? size : end || 0;
+    }
+
+    var keys = {
+        8: "backspace",
+        9: "tab",
+        13: "enter",
+        37: "left",
+        38: "up",
+        39: "right",
+        40: "down",
+        46: "delete"
+    };
+
+    var dto = {
+        styles: [{ query: "*", lines: [""] }],
+        hint: ""
+    };
+
+    var actor = {
+        addStyle: function () {
+            sendRequest({ action: "getDOM" }).then(function (response) {
+                addStyle(response.dom);
+            });
+        },
+        addLine: function (style, index) {
+            style.splice(index, 0, "");
+        },
+        cancelEnter: function (event) {
+            if (event.keyCode === 13) event.preventDefault();
+        },
+        trimText: function (index) {
+            var newText = dto.styles[index].query.trim();
+            if (newText === dto.styles[index].query) return;
+            dto.styles[index].query = newText;
+        },
+        freeSelect: function () {
+            sendRequest({ action: "freeSelect" });
+        },
+        select: function (query) {
+            sendRequest({ action: "select", selector: query });
+        },
+        clearHint: function () {
+            dto.hint = null;
+        },
+        showHint: function (style, line) {
+            var text = style.lines[line], original = text;
+            this.clearHint();
+            text = text.trim();
+            if (text.length > 0) {
+                if (text.includes(":")) {
+                    var match = text.split(":")[1].trim();
+                    var before = text.split(":")[0].trim();
+                    var regex = new RegExp(`^${match}`, "ig");
+                    var keys = hints[before] || [];
+                    for (var index = keys.length - 1; index > 0; index--) {
+                        var key = keys[index];
+                        if (regex.test(key) && match !== key) {
+                            return dto.hint = `${original}${`${before}: ${key}`.substring(text.length)}`;
+                        }
+                    }
+                } else {
+                    match = text.split(":")[0].trim();
+                    regex = new RegExp(`^${match}`, "ig");
+                    keys = Object.keys(hints);
+                    for (index = keys.length - 1; index > 0; index--) {
+                        key = keys[index];
+                        if (regex.test(key) && match !== key) {
+                            return dto.hint = `${original}${`${key}`.substring(text.length)}`;
+                        }
+                    }
+                }
+            }
+        },
+        onKeyDown: function (style, index, event) {
+            if (actions[keys[event.keyCode] || "empty"](style, index, event.target.selectionStart, event.target.selectionEnd, event.target.value)) {
+                event.preventDefault();
+            }
+        },
+        closeStyle: function (index) {
+            dto.styles.splice(index, 1);
+        },
+        closeLine: function (style, index) {
+            if (dto.styles[style].lines.length - 1) dto.styles[style].lines.splice(index, 1);
+            else dto.styles[style].lines[0] = "";
+        }
+    };
     exports.saveLocal = saveLocal;
     exports.getLocal = getLocal;
+    exports.dto = dto;
     return exports;
 
     /**
@@ -104,24 +276,6 @@ if (undefined) var hints = require("./hints.js");
         });
     }
 
-    /** 
-     * Selects all the elemented that can be selected with the input
-     * @param {MouseEvent} event
-     * @returns {void}
-     */
-    function select(event) {
-        var text = event.srcElement.textContent;
-        sendRequest({ action: "select", selector: text });
-    }
-
-    /** 
-     * Deselects all the elements previously selected
-     * @returns {void}
-     */
-    function freeSelect() {
-        sendRequest({ action: "freeSelect" });
-    }
-
     /**
      * On content fully loaded
      * @returns {void}
@@ -134,6 +288,7 @@ if (undefined) var hints = require("./hints.js");
             getLocal(tempUrl).then(function (result) {
                 var data = result;
                 getLocal(url).then(function (result) {
+                    View.renderDom(document.body, actor, dto);
                     data = data || result;
                     var list = data.split("}"); list.pop();
                     for (var item of list) {
@@ -153,10 +308,7 @@ if (undefined) var hints = require("./hints.js");
      * @returns {void}
      */
     function onKeyDown(event) {
-        if (event.ctrlKey) {
-            var keyCode = event.keyCode || event.which;
-            if (keyCode === 83) updateStyle();
-        }
+        if (event.ctrlKey && event.keyCode === 83) updateStyle();
     }
 
     /**
@@ -173,14 +325,6 @@ if (undefined) var hints = require("./hints.js");
     }
 
     /**
-     * On new style clicked
-     * @returns {void} 
-     */
-    function onNewStyleClicked() {
-        addStyle();
-    }
-
-    /**
      * On export clicked
      * @returns {void} 
      */
@@ -194,7 +338,7 @@ if (undefined) var hints = require("./hints.js");
         try {
             document.execCommand("copy");
         } catch (err) {
-            // console.warn("Unable to copy to clipboard");
+            alert("Unable to copy to clipboard");
         } finally {
             selector.style.display = "none";
             selector.value = "";
@@ -218,54 +362,13 @@ if (undefined) var hints = require("./hints.js");
                     properties.pop(); addStyle(subList[0], properties);
                 }
             } else {
-                // console.warn("Unable to read from clipboard");
+                alert("Unable to read from clipboard");
             }
         } catch (err) {
-            // console.warn("Unable to read from clipboard");
+            alert("Unable to read from clipboard");
         } finally {
             selector.style.display = "none";
         }
-    }
-
-    /**
-     * On Heading keyboard event
-     * @param {KeyboardEvent} event
-     * @returns {void} 
-     */
-    function onHeadingPressed(event) {
-        if (event.keyCode === 13) event.preventDefault();
-    }
-
-    /**
-     * On heading focus out event
-     * @param {FocusEvent} event 
-     * @returns {void}
-     */
-    function onHeadingBlur(event) {
-        var target = event.target;
-        var text = target.innerText;
-        target.innerText = text.trim();
-    }
-
-    /**
-     * On close (x) clicked
-     * @param {MouseEvent} event 
-     * @returns {void}
-     */
-    function onCloseClicked(event) {
-        var parent = event.srcElement.parentElement; freeSelect();
-        if (parent.nextElementSibling || parent.previousElementSibling) {
-            if (parent.parentElement) parent.parentElement.removeChild(parent);
-        }
-    }
-
-    /**
-     * On line input blur
-     * @returns {void} 
-     */
-    function onInputReleased() {
-        var hints = document.querySelectorAll(".line .hint");
-        for (var hint of hints) hint.remove();
     }
 
     /**
@@ -275,221 +378,9 @@ if (undefined) var hints = require("./hints.js");
      * @return {void}
      */
     function addStyle(selector, properties) {
-        properties = properties || [""]; selector = selector || "*";
-        sendRequest({ action: "getDOM" }).then(function (response) {
-            var list = document.querySelectorAll("#container>.title.panel-heading");
-            if (response instanceof Object) {
-                if (selector == "*" && response.dom) {
-                    selector = response.dom;
-                }
-            }
-            for (var item of list) {
-                if (item.textContent === selector) {
-                    var container = item.parentElement;
-                    break;
-                }
-            }
-            if (container === undefined) {
-                container = createStyleBlock(selector);
-                document.querySelector("#container").appendChild(container);
-            }
-            var body = container.getElementsByTagName("ol")[0];
-            for (var line of properties) {
-                body.appendChild(createLine(line));
-            }
+        dto.styles.push({
+            lines: properties || [""],
+            query: typeof selector === "string" ? selector : "*"
         });
     }
-
-    /**
-     * Creates a new style block element
-     * @param {string} selector 
-     * @returns {HTMLDivElement}
-     */
-    function createStyleBlock(selector) {
-        var heading = document.createElement("span");
-        var close = document.createElement("button");
-        var style = document.createElement("div");
-        var body = document.createElement("ol");
-        var end = document.createElement("span");
-
-        style.className = "style panel panel-default";
-        heading.className = "title panel-heading";
-        close.className = "close top-right";
-        body.className = "panel-body";
-        end.className = "end";
-
-        heading.contentEditable = "true";
-        heading.textContent = selector;
-
-        style.appendChild(heading);
-        style.appendChild(close);
-        style.appendChild(body);
-
-        heading.addEventListener("keydown", onHeadingPressed);
-        heading.addEventListener("focusout", onHeadingBlur);
-        heading.addEventListener("mouseout", freeSelect);
-        close.addEventListener("click", onCloseClicked);
-        heading.addEventListener("mouseover", select);
-
-        return style;
-    }
-
-    /**
-     * 
-     * @param {string} text 
-     */
-    function createLine(text) {
-        var close = document.createElement("button");
-        var input = document.createElement("input");
-        var line = document.createElement("li");
-
-        close.className = "close visible-on-hover";
-        line.className = "line";
-
-        input.value = text.trim();
-        input.spellcheck = false;
-        input.type = "text";
-
-        line.appendChild(close);
-        line.appendChild(input);
-
-        input.addEventListener("focus", onInputReleased);
-        close.addEventListener("click", onCloseClicked);
-        input.addEventListener("keydown", onKeyPressed);
-        input.addEventListener("keyup", onKeyUp);
-
-        return line;
-    }
-
-    /**
-     * On key pressed on 
-     * @param {KeyboardEvent} event
-     * @returns {void} 
-     */
-    function onKeyPressed(event) {
-        var target = event.srcElement;
-        var previous = target.parentElement.previousElementSibling;
-        var next = target.parentElement.nextElementSibling;
-        var parent = target.parentElement.parentElement;
-        var selectStart = target.selectionStart;
-        var selectEnd = target.selectionEnd;
-        var keyCode = event.keyCode;
-        var text = target.value;
-        var size = text.length;
-        ({
-            8: function () { // BackSpace
-                var other = previous || next;
-                if (selectEnd === 0 && other) {
-                    var otherInput = other.getElementsByTagName("input")[0];
-                    target.parentElement.remove();
-                    otherInput.value += text;
-                    event.preventDefault();
-                    otherInput.focus();
-                } else { onInputReleased(event); }
-            },
-            9: function () { // Tab
-                if (selectStart !== selectEnd) {
-                    var selected = `${tab}${text.substring(selectStart, selectEnd)}`.replace(line, `${line}${tab}`);
-                    target.value = text.substring(0, selectStart) + selected + text.substring(selectEnd);
-                    target.selectionEnd = selectStart + selected.length;
-                    target.selectionStart = selectStart + 1;
-                    event.preventDefault();
-                } else {
-                    var hint = parent.getElementsByClassName("hint")[0];
-                    target.value = hint ? hint.textContent : text;
-                    event.preventDefault();
-                }
-            },
-            13: function () { // Enter
-                var newLine = createLine(text.substring(selectStart));
-                target.value = text.substring(0, selectStart);
-                var newInput = newLine.lastElementChild;
-                if (next) parent.insertBefore(newLine, next);
-                else parent.appendChild(newLine);
-                event.preventDefault();
-                newInput.focus();
-                newInput.selectionEnd = 0;
-            },
-            37: function () { // Left
-                if (selectStart == 0 && previous) {
-                    selectEnd = previous.lastElementChild.value.length;
-                    previous.lastElementChild.selectionStart = selectEnd;
-                    previous.lastElementChild.selectionEnd = selectEnd;
-                    previous.lastElementChild.focus();
-                    event.preventDefault();
-                }
-            },
-            38: function () { // Up
-                if (previous) {
-                    previous.lastElementChild.selectionStart = selectEnd;
-                    previous.lastElementChild.selectionEnd = selectEnd;
-                    previous.lastElementChild.focus();
-                    event.preventDefault();
-                }
-            },
-            39: function () { // Right
-                if (selectEnd === size && next) {
-                    next.lastElementChild.selectionStart = 0;
-                    next.lastElementChild.selectionEnd = 0;
-                    next.lastElementChild.focus();
-                    event.preventDefault();
-                }
-            },
-            40: function () { // Down
-                if (next) {
-                    next.lastElementChild.selectionStart = selectEnd;
-                    next.lastElementChild.selectionEnd = selectEnd;
-                    next.lastElementChild.focus();
-                    event.preventDefault();
-                }
-            },
-            46: function () { // Delete
-                if (selectEnd === size && next) {
-                    target.value += next.getElementsByTagName("input")[0].value;
-                    target.selectionStart = selectStart;
-                    target.selectionEnd = selectEnd;
-                    event.preventDefault();
-                    next.remove();
-                }
-            }
-        }[keyCode] || (() => { }))();
-    }
-
-    /**
-     * On key released
-     * @param {KeyboardEvent} event
-     * @returns {void} 
-     */
-    function onKeyUp(event) {
-        var target = event.target, text = target.value.trim(), parent = target.parentElement, original = target.value;
-        if (hintDom.parentElement) hintDom.parentElement.removeChild(hintDom);
-        parent.appendChild(hintDom);
-        hintDom.textContent = "";
-        text = text.trim();
-        if (text.length > 0) {
-            if (text.includes(":")) {
-                var match = text.split(":")[1].trim();
-                var before = text.split(":")[0].trim();
-                var regex = new RegExp(`^${match}`, "ig");
-                var keys = hints[before] || [];
-                for (var index = keys.length - 1; index > 0; index--) {
-                    var key = keys[index];
-                    if (regex.test(key) && match !== key) {
-                        return hintDom.textContent = `${original}${`${before}: ${key}`.substring(text.length)}`;
-                    }
-                }
-            } else {
-                match = text.split(":")[0].trim();
-                regex = new RegExp(`^${match}`, "ig");
-                keys = Object.keys(hints);
-                for (index = keys.length - 1; index > 0; index--) {
-                    key = keys[index];
-                    if (regex.test(key) && match !== key) {
-                        return hintDom.textContent = `${original}${`${key}`.substring(text.length)}`;
-                    }
-                }
-            }
-        }
-    }
-
 });

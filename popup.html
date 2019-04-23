@@ -1,12 +1,29 @@
 <html>
 
 <head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta http-equiv="encoding" content="utf-8" />
     <title>Custom CSS</title>
     <link href="styles.css" rel="stylesheet" type="text/css" />
 </head>
 
 <body style="min-width: 250px;">
-    <div id="container"></div>
+    <div id="container" ez-loop="let style in styles">
+        <div class="style panel panel-default">
+            <input class="title panel-heading" contenteditable="true" ez-key-down="cancelEnter($)" ez-blur="trimText(style)"
+                ez-mouse-out="freeSelect" ez-mouse-over="select(styles[{style}].query)" name="styles[{style}].query" />
+            <button class="close top-right" ez-click="closeStyle({style})"></button>
+            <ol class="panel-body" ez-loop="let line in styles[{style}].lines">
+                <li class="line">
+                    <button class="close visible-on-hover" ez-click="closeLine({style}, {line})"></button>
+                    <input type="text" name="styles[{style}].lines[{line}]" spellcheck="false" ez-focus="clearHint"
+                        ez-key-up="showHint(styles[{style}], {line})" ez-key-down="onKeyDown({style}, {line}, $)" />
+                    <span class="hint" ez-if="hint">{hint}</span>
+                </li>
+            </ol>
+        </div>
+    </div>
+    <debug ez-pass-properties="styles, *" style="width: 100vw; display: block; display: none;"></debug>
     <button id="plus-style" class="simple">Add Style</button>
     <button id="save" class="simple">Save</button>
     <button id="export" class="simple" title="export">
@@ -24,6 +41,9 @@
     <div class="lock"><input id="selector" /></div>
     <!--<button id="drag-left" draggable="true"></button>-->
     <script src="hints.js"></script>
+    <script src="functions.js"></script>
+    <script src="view.js"></script>
+    <script src="debug.js"></script>
     <script src="popup.js"></script>
 </body>
 

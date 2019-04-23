@@ -146,14 +146,16 @@ var hints = (function () {
         "Plum",
         "Snow",
         "Teal",
+        "rgba",
         "Red",
-        "Tan"
+        "Tan",
+        "rgb"
     ];
 
     var defaultList = [
         "inherit",
         "initial",
-		"unset"
+        "unset"
     ];
 
     var display = [
@@ -178,37 +180,33 @@ var hints = (function () {
         "flex",
         "none"
     ];
-	
-	var position = [
-		"absolute",
-		"relative",
-		"static",
-		"sticky",
-		"fixed"
-	];
-	
-	var borderWidth = [
-		"medium",
-		"thick",
-		"thin"
-	];
-	
-	var auto = [
-		"auto"
-	];
-	
-	var none = [
-		"none"
-	];
-	
-	var size = [
-		"-webkit-fill-available",
-		"fit-content",
-		"max-content",
-		"min-content"
-	];
-	
-	var template = {		
+
+    var position = [
+        "absolute",
+        "relative",
+        "static",
+        "sticky",
+        "fixed"
+    ];
+
+    var borderWidth = [
+        "medium",
+        "thick",
+        "thin"
+    ];
+
+    var auto = [
+        "auto"
+    ];
+
+    var size = [
+        "-webkit-fill-available",
+        "fit-content",
+        "max-content",
+        "min-content"
+    ];
+
+    var template = {
         "background": colors,
         "background-color": colors,
         "border": colors.concat(borderWidth),
@@ -218,11 +216,11 @@ var hints = (function () {
         "border-right": colors.concat(borderWidth),
         "border-top": colors.concat(borderWidth),
         "border-width": borderWidth,
-		"bottom": auto,
+        "bottom": auto,
         "color": colors,
-		"display": display,
-		"height": size,
-		"left": auto,
+        "display": display,
+        "height": size,
+        "left": auto,
         "margin": auto,
         "margin-bottom": auto,
         "margin-left": auto,
@@ -235,15 +233,15 @@ var hints = (function () {
         "padding-left": undefined,
         "padding-right": undefined,
         "padding-top": undefined,
-		"position": position,
-		"right": auto,
-		"top": auto,
-		"width": size
-	};
-	
-	(function (){
-		for (var property in template) template[property] = (template[property] || []).concat(defaultList);
-	})();
+        "position": position,
+        "right": auto,
+        "top": auto,
+        "width": size
+    };
+
+    (function () {
+        for (var property in template) template[property] = (template[property] || []).concat(defaultList);
+    })();
 
     return template;
 })();
