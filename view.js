@@ -21,7 +21,7 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Object containing useful objects regarding the view
      * @typedef {Object} ViewManager
-     * @property {HTMLElement} container 
+     * @property {HTMLElement} container the html container of the view
      * @property {{}} actor map of functioncs
      * @property {{}} values map of proxies
      * @property {{}} original map of values
@@ -42,11 +42,7 @@ if (undefined) var { Functions, Http } = require("../ez");
         "ez-blur": "blur"
     };
 
-    const variableTypes = {
-        "var": function (list, index, name, scope) { return (scope || {})[name] = list[index]; },
-        "const": function (list, index, name, scope) { return (scope || {})[name] = list[0]; },
-        "let": function (list, index) { return list[index]; }
-    };
+    const variableTypes = ["var", "const", "let"];
 
     const valueTags = ["BUTTON", "INPUT", "PROGRESS"];
 
@@ -99,13 +95,11 @@ if (undefined) var { Functions, Http } = require("../ez");
 
     /**
      * Initializes the text of the view with attributes and comments
-     * @param {string|HTMLElement} html text form of the view or existing html
-     * @returns {HTMLElement} 
+     * @param {string|HTMLElement} html text form of the view or existing html (or the container itself)
+     * @returns {HTMLElement} the container of the view
      */
     function setUpText(html) {
-        // TODO apply has-binding to renderDom
-        var container = html instanceof HTMLElement ? html
-            : newDiv(html.replace(/(<\w+(\w|\s|[".$=\-\\(),])*\{(\w|[$.,()])*\}(\w|\s|[".$=\-\\(),])*>)/g, addEzHasAttributes), "ez-view");
+        var container = html instanceof HTMLElement ? html : newDiv(html, "ez-view");
         // Add ez-has-text
         for (var dom of Functions.querySelectorAll(container, "*")) {
             var matches = [];
@@ -124,16 +118,18 @@ if (undefined) var { Functions, Http } = require("../ez");
         for (dom of Functions.toList(container.querySelectorAll("[ez-loop]")).reverse()) {
             var { 0: itemType, 2: loopType, 3: listName } = dom.getAttribute("ez-loop").split(" ");
             if (!listName) throw Error(`Incorrect ez-loop format: '${dom.getAttribute("ez-loop")}', Proper format is: ${variableTypes.join("|")} [itemName] ${Object.keys(loopingTypes).join("|")} [listName]`);
-            if (!variableTypes[itemType]) throw Error(`Unrecognised variable declaration type: '${itemType}', valid types include: ${variableTypes.join(", ")}`);
+            if (!variableTypes.includes(itemType)) throw Error(`Unrecognised variable declaration type: '${itemType}', valid types include: ${variableTypes.join(", ")}`);
             if (!loopingTypes[loopType]) throw Error(`Unrecognised looping type: '${loopType}', valid types include: ${Object.keys(loopingTypes).join(", ")}`);
             if (dom.childElementCount !== 1) wrapContent(dom);
             replaceContentWith(dom, newComment(dom));
         }
         // Sets up bindings in attributes
-        for (dom of Functions.querySelectorAll(container, "[ez-has-binding]")) {
+        // TODO Fix
+        for (dom of Functions.querySelectorAll(container, "*")) {
             for (var attr of dom.attributes) {
-                if (!/\{(\.[^{|}])+\}/.test(dom.getAttribute(attr.name))) throw new Error("Unexpected Error");
-                dom.setAttribute("ez-has-binding", `${dom.getAttribute("ez-has-binding")}${attr.name}(${dom.getAttribute(attr.name)});`);
+                if (attr.name !== "ez-has-binding" && /\{.+\}/.test(dom.getAttribute(attr.name))) {
+                    dom.setAttribute("ez-has-binding", `${dom.getAttribute("ez-has-binding") || ""}${attr.name}(${dom.getAttribute(attr.name)});`);
+                }
             }
         }
         return container;
@@ -142,7 +138,7 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Checks the view for errors
      * @param {ViewManager} manager the view manager
-     * @returns {ViewManager}
+     * @returns {ViewManager} the view manager
      */
     function validateView(manager) {
         // Loop check
@@ -160,7 +156,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * Sets up the html element for the view or for a list item
      * @param {ViewManager} manager the view manager
      * @param {boolean} skipUpdates whether the item is a list item or not
-     * @returns {HTMLElement}
+     * @returns {HTMLElement} the container of the view
      */
     function initializeDom(manager, skipUpdates) {
         var container = manager.container;
@@ -181,9 +177,8 @@ if (undefined) var { Functions, Http } = require("../ez");
                 });
                 updateProperties(manager.values, manager, "");
             }
-        } else {
-            updateDom(manager);
         }
+        updateDom(manager);
         var propertyListener = Functions.createFunction(htmlUpdateProperty, manager);
         for (dom of container.querySelectorAll("[name]")) {
             dom.addEventListener(dom.tagName === "INPUT" ? "input" : "change", propertyListener);
@@ -211,8 +206,6 @@ if (undefined) var { Functions, Http } = require("../ez");
         for (var property in values) {
             if (typeof values[property] === "object" && (!isProxy(values[property]) || forceUpdate)) {
                 updateProperty(values, property, manager, propertyPath);
-            } else {
-                // TODO? Update Value ??
             }
         }
     }
@@ -237,15 +230,18 @@ if (undefined) var { Functions, Http } = require("../ez");
     }
 
     /**
-     * 
-     * @param {ViewManager} manager 
-     * @param {string} [property]
+     * Updates all the bindings of the view
+     * @param {ViewManager} manager the view manager
+     * @param {string} [property] optional parameter, if not null only properties related to this parameter will be updated
      * @returns {void}
      */
     function updateDom(manager, property) {
         var container = manager.container, querySelectorAll = Functions.querySelectorAll, like = property ? `*="${property}"` : "";
+        for (var dom of querySelectorAll(container, `[ez-loop${like}`)) {
+            if (!isElementParented(dom, container)) loopFor(dom, manager, property);
+        }
         for (var key in attributesTernary) {
-            for (var dom of querySelectorAll(container, `[${key}${like}]`)) {
+            for (dom of querySelectorAll(container, `[${key}${like}]`)) {
                 if (!isElementParented(dom, container)) {
                     dom.setAttribute(attributesTernary[key], resolveTernary(dom.getAttribute(key), manager));
                 }
@@ -266,8 +262,12 @@ if (undefined) var { Functions, Http } = require("../ez");
         for (dom of querySelectorAll(container, `[ez-has-text${like}]`)) {
             if (!isElementParented(dom, container)) {
                 for (var text of dom.childNodes) {
-                    if (text.nodeType === 3 && text.previousSibling && text.previousSibling.nodeType === 8 && text.previousSibling.textContent) {
-                        text.textContent = getAttributeValue(text.previousSibling, ":text", manager.values, manager.scope);
+                    if (text.nodeType === 8 && !text.nextSibling) {
+                        text.parentElement.appendChild(newText(getAttributeValue(text, ":text", manager.values)));
+                    } else if (text.nodeType === 8 && text.nextSibling.nodeType !== 3) {
+                        text.parentElement.insertBefore(newText(getAttributeValue(text, ":text", manager.values)), text.nextSibling);
+                    } else if (text.nodeType === 3 && text.previousSibling && text.previousSibling.nodeType === 8 && text.previousSibling.textContent) {
+                        text.textContent = getAttributeValue(text.previousSibling, ":text", manager.values);
                     }
                 }
             }
@@ -312,7 +312,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * Function used as a getter for the properties
      * @param {string} property name of property
      * @param {ViewManager} manager the view manager
-     * @returns {*}
+     * @returns {*} the property of the values
      */
     function getProperty(property, manager) {
         return manager.original[property];
@@ -327,15 +327,17 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @param {ViewManager} manager the view manager
      * @param {string} propertyPath the absolute path of the property
      * @param {boolean} [skipUpdates] if true will skip the update property segment
-     * @returns {boolean}
+     * @returns {boolean} whether the value was set properly
      */
     function setProxy(target, property, value, receiver, manager, propertyPath, skipUpdates) {
         if (!skipUpdates) {
             if (property === Symbol.for("__isProxy")) throw new Error("You cannot set the value of '__isProxy'");
             if (property === Symbol.for("__target")) throw new Error("You cannot set the value of '__target'");
-            if (target[property === value]) return true;
+            if (target[property] === value && typeof target[Symbol.iterator] !== "function") {
+                return true;
+            }
             target[property] = value;
-            var path = propertyPath.substring(0, (propertyPath.lastIndexOf(property) + 1 || Infinity) - 2);
+            var path = propertyPath.substring(0, (propertyPath.lastIndexOf(property) + 1 || propertyPath.length + 2) - 2);
             if (value != null && typeof target[Symbol.iterator] === "function") {
                 if (updateProperty(target, property, manager, path)) return true;
             }
@@ -346,7 +348,7 @@ if (undefined) var { Functions, Http } = require("../ez");
             }
         }
         var container = manager.container, querySelectorAll = Functions.querySelectorAll;
-        for (var dom of querySelectorAll(container, `[ez-loop$="${propertyPath}"]`)) { // TODO $ ?
+        for (var dom of querySelectorAll(container, `[ez-loop*="${propertyPath}"]`)) {
             if (!isElementParented(dom, container)) loopFor(dom, manager, property);
         }
         updateDom(manager, property);
@@ -360,9 +362,9 @@ if (undefined) var { Functions, Http } = require("../ez");
 
     /**
      * Checks if an element has a different parent element that should manage 
-     * @param {HTMLElement} element 
-     * @param {HTMLElement} container 
-     * @returns {boolean}
+     * @param {HTMLElement} element element to check if it should be changed
+     * @param {HTMLElement} container the current container of the view manager
+     * @returns {boolean} whether the element is directly parented by the container
      */
     function isElementParented(element, container) {
         if (element === container) return false;
@@ -375,7 +377,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * Checks the result a boolean expression in text form
      * @param {ViewManager} manager the view manager
      * @param {Array<string | Array<string>> | HTMLElement} equationList the expression split into smaller parts
-     * @returns {boolean}
+     * @returns {boolean} the result of the boolean expression
      */
     function checkBoolean(manager, equationList) {
         if (equationList instanceof HTMLElement) return checkBoolean(manager, Functions.extractBooleanEquation(equationList.getAttribute("ez-if")));
@@ -422,7 +424,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * Gets the troothy of a variable in text form
      * @param {ViewManager} manager the view manager
      * @param {string} text the variable in text form
-     * @returns {boolean}
+     * @returns {boolean} the troothy of the value of a property
      */
     function getTextValue(manager, text) {
         text = text.trim();
@@ -588,11 +590,11 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @param {ViewManager} manager the view manager
      * @param {number | string} index the index of the changed element (if the index is equal to "length" or the name of the list, then a large part or all of the list has been altered)
      * @param {boolean} [forceReplace] if true will replace the current list item
-     * @returns {HTMLElement}
+     * @returns {void}
      */
-    function loopFor(container, manager, index, forceReplace) {
-        var { 0: itemType, 1: itemName, 2: loopType, 3: listName } = container.getAttribute("ez-loop").split(" ");
-        var list = loopingTypes[loopType](getPropertyValue(listName, manager.values, manager.scope));
+    function loopFor(container, manager, index, retreivedList) {
+        var { 1: itemName, 2: loopType, 3: listName } = container.getAttribute("ez-loop").split(" ");
+        var list = retreivedList || loopingTypes[loopType](getPropertyValue(listName, manager.values, manager.scope));
         var content = container.firstChild;
         while (content && !content.textContent && content.nodeType === 8) content = content.nextSibling;
         if (!content || content.nodeType !== 8) throw Error("Unexpected Error at Loop For");
@@ -600,10 +602,10 @@ if (undefined) var { Functions, Http } = require("../ez");
             var textContent = loopType === "in" ? content.textContent.replace(new RegExp(`{${itemName}}`, "g"), index)
                 : content.textContent.replace(new RegExp(`{${itemName}}`, "g"), `${listName}[${index}]`);
             var parentText = container.hasAttribute("ez-has-text") ? container.getAttribute("ez-has-text") : undefined;
-            var itemValue = variableTypes[itemType](list, index, itemName, manager.scope);
+            var itemValue = list[index];
             var indexAttribute = `${listName}[${index}]`;
             var childrenFound = container.querySelectorAll(`[ez-loop-index="${indexAttribute}"]`);
-            if (childrenFound.length && !forceReplace) return;
+            if (childrenFound.length && !retreivedList) return;
             var newScope = getItemManager(manager, itemValue, itemName);
             for (var oldChild of childrenFound.length ? childrenFound : [0]) {
                 var newChild = createListItem(textContent, newScope, indexAttribute, parentText);
@@ -621,10 +623,9 @@ if (undefined) var { Functions, Http } = require("../ez");
         } else { // enters when the whole list is changed
             replaceContentWith(container, content);
             for (index = 0; index < list.length; index++) {
-                loopFor(container, manager, index, true);
+                loopFor(container, manager, index, list);
             }
         }
-        return container;
     }
 
     /**
@@ -636,21 +637,25 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @returns {void}
      */
     function checkOtherLoopVariables(container, manager, property, path) {
-        var { 0: itemType, 1: itemName, 2: loopType, 3: listName } = container.getAttribute("ez-loop").split(" ");
+        var { 1: itemName, 2: loopType, 3: listName } = container.getAttribute("ez-loop").split(" ");
         var list = loopingTypes[loopType](getPropertyValue(listName, manager.values, manager.scope));
-        // only checks for same, should also check for child
-        if (itemType !== "const" && path === listName) var propertyFound = property;
+        if (path === listName) var propertyFound = property;
+        else if (listName.startsWith(path)) {
+            if (property == 1) console.log(listName, ...arguments);
+        }
+        else if (path.startsWith(listName)) {
+            if (property == 1) console.log(listName, ...arguments);
+            //propertyFound = property;
+        }
         if (typeof propertyFound !== "undefined" && isNaN(propertyFound - 0)) return;
         for (var child of container.children) {
             var index = child.getAttribute("ez-loop-index");
             if (propertyFound && index !== `${listName}[${propertyFound}]`) continue;
-            var newScope = getItemManager(manager, variableTypes[itemType](list, index.match(/(?:\[)(.*)(?=\])/)[1], itemName, manager.scope), itemName);
+            var newScope = getItemManager(manager, list[index], itemName);
             newScope.container = child;
             setProxy(manager.original, property, null, manager.original, newScope, path, true);
             if (propertyFound) return;
-            // TODO this only calls for index, need to call for item too
         }
-        // TODO Nested Loops
     }
 
     /**
@@ -672,7 +677,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @param {ViewManager} manager view manager
      * @param {string} index index of item in ez-loop list
      * @param {boolean} parentText the value of the ez-has-text attribute of the container, assuming it has text
-     * @returns {HTMLElement} 
+     * @returns {HTMLElement} the container of the list item
      */
     function createListItem(content, manager, index, parentText) {
         var container = newDiv(content);
@@ -706,7 +711,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * Resolves the result a simple ternary in text form
      * @param {string} expression the ternary expression
      * @param {ViewManager} manager manager object
-     * @returns {string}
+     * @returns {string} the result of the ternary
      */
     function resolveTernary(expression, manager) {
         var expressions = expression.split(",");
@@ -723,7 +728,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @param {HTMLElement} dom the dom to be managed
      * @param {{}} actor object to be called on actions
      * @param {{}} values values to be replaced on render
-     * @returns {HTMLElement}
+     * @returns {HTMLElement} the container element of the view
      */
     function renderDom(dom, actor, values) {
         return initializeDom(validateView({ container: setUpText(dom), actor: actor, values: values, original: Functions.cloneObject(values), scope: {} }));
@@ -845,40 +850,10 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Checks if an item is a troothy
      * @param {*} item the item to be checked for troothy
-     * @returns {boolean}
+     * @returns {boolean} troothy of parameter
      */
     function troothy(item) {
         return !!item;
-    }
-
-    /**
-     * Adds the attribute ez-has-text to an html tag
-     * @param {string} match the tag that should have the attribute
-     * @returns {string}
-     */
-    function addEzHasAttributes(match) {
-        return match.replace(/\s|>/, replaceEzHasAttributes);
-    }
-
-    /**
-     * Adds the attribute ez-has-text before the end of the html tag or the first attribute
-     * @param {string} space the space before the first attribute or the end of the tag
-     * @returns {string}
-     */
-    function replaceEzHasAttributes(space) {
-        return ` ez-has-binding${space}`;
-    }
-
-    /**
-     * Checks if a list item element is related to a variable
-     * @param {HTMLElement} child the html element
-     * @param {number} index unused parameter from regex result
-     * @param {Array<string>} list unused parameter from regex result
-     * @param {string} path the path of the variable
-     * @returns {boolean}
-     */
-    function pathIncludesListItem(child, index, list, path) {
-        return path.includes(child.getAttribute("ez-loop-index"));
     }
 
     /**
@@ -889,7 +864,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @param {string} attr unused parameter from regex result
      * @param {{}} values object containing values 
      * @param {{}} scope object with temporary variables 
-     * @returns {string}
+     * @returns {string} the value of the attribute in string form
      */
     function replaceAttributeValue(fullMatch, match, index, attr, values, scope) {
         var result = getPropertyValue(match, values, scope);
@@ -903,7 +878,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @param {Array<string>} list unused parameter from regex result
      * @param {{}} values object containing values 
      * @param {{}} scope object with temporary variables 
-     * @returns {*}
+     * @returns {*} the value of the property
      */
     function mapAttributeProperty(property, index, list, values, scope) {
         return getPropertyValue(property, values, scope);
@@ -912,7 +887,7 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Check if a variable is a proxy
      * @param {Proxy} item item to be checked
-     * @returns {boolean}
+     * @returns {boolean} whether the variable is a proxy
      */
     function isProxy(proxy) {
         return proxy == null ? false : proxy[Symbol.for("__isProxy")];
@@ -921,7 +896,7 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Gets the target of a proxy
      * @param {Proxy} proxy the proxy parent of the target
-     * @returns {*}
+     * @returns {*} the target of the or the variable if not a proxy
      */
     function getTarget(proxy) {
         return isProxy(proxy) ? proxy[Symbol.for("__target")] : proxy;
@@ -933,7 +908,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      * Creates a new div html element
      * @param {string} [html] inner html of the new element
      * @param {string} [className] class of the new element
-     * @returns {HTMLDivElement}
+     * @returns {HTMLDivElement} the new div element
      */
     function newDiv(html, className) {
         var div = document.createElement("div");
@@ -945,10 +920,19 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Creates a new comment element
      * @param {Node | string} content content of the comment
-     * @returns {Comment} 
+     * @returns {Comment} the new comment element
      */
     function newComment(content) {
         return document.createComment(content instanceof Node ? content instanceof HTMLElement ? content.innerHTML : content.textContent : content);
+    }
+
+    /**
+     * Creates a new text node
+     * @param {Node | string} content text of element
+     * @returns {Text} the new text element
+     */
+    function newText(content) {
+        return document.createTextNode(content instanceof Node ? content instanceof HTMLElement ? content.innerHTML : content.textContent : content);
     }
 
     /**
@@ -974,10 +958,10 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Wraps the content of an Element
      * @param {HTMLElement} dom the element to have its content wrapped
-     * @returns {HTMLElement} 
+     * @returns {void} 
      */
     function wrapContent(dom) {
-        return replaceContentWith(dom, extractChildren(dom));
+        replaceContentWith(dom, extractChildren(dom));
     }
 
     /**
@@ -994,7 +978,7 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Moves all the children from the original dom to a new dom
      * @param {HTMLElement} dom dom element to be cleared
-     * @returns {HTMLElement}
+     * @returns {HTMLElement} the new wrapper element
      */
     function extractChildren(dom) {
         var div = newDiv();
