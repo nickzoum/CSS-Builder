@@ -160,7 +160,7 @@ if (undefined) var { Functions, Http } = require("../ez");
     /**
      * Sets up the html element for the view or for a list item
      * @param {ViewManager} manager the view manager
-     * @param {boolean} skipUpdates whether the item is a list item or not
+     * @param {boolean} skipUpdates whether the values object needs to be set up
      * @returns {HTMLElement} the container of the view
      */
     function initializeDom(manager, skipUpdates) {
@@ -281,7 +281,10 @@ if (undefined) var { Functions, Http } = require("../ez");
         }
         for (dom of querySelectorAll(container, `[ez-if${like}]`)) {
             if (!isElementParented(dom, container)) {
+                var oldThis = manager.scope.this, oldGlobal = manager.scope.global;
+                manager.scope.this = dom; manager.scope.global = window;
                 showDom(dom, checkBoolean(manager, dom));
+                manager.scope.this = oldThis; manager.scope.global = oldGlobal;
             }
         }
         var mapProperty = Functions.createFunction(mapAttributeProperty, manager.values, manager.scope);
@@ -341,7 +344,6 @@ if (undefined) var { Functions, Http } = require("../ez");
      * @returns {boolean} whether the value was set properly
      */
     function setProxy(target, property, value, receiver, manager, propertyPath, skipUpdates) {
-        if (property === "hint") return;
         if (!skipUpdates) {
             if (property === Symbol.for("__isProxy")) throw new Error("You cannot set the value of '__isProxy'");
             if (property === Symbol.for("__target")) throw new Error("You cannot set the value of '__target'");
@@ -394,40 +396,38 @@ if (undefined) var { Functions, Http } = require("../ez");
     function checkBoolean(manager, equationList) {
         if (equationList instanceof HTMLElement) return checkBoolean(manager, Functions.extractBooleanEquation(equationList.getAttribute("ez-if")));
         var equation = null;
-        var result = false;
+        var result = null;
         var negate = false;
         var value = null;
         for (var item of equationList) {
-            switch (item) {
-                case "!":
-                    negate = true;
-                    break;
-                case (/\|\||&&|!==|===|!=|==|>=|<=|>|</.test(item) ? item : null):
+            if (typeof item === "string") {
+                if (item === "!") {
+                    negate = !negate;
+                    continue;
+                } else if (/^(\|\||&&|!==|===|!=|==|>=|<=|>|<)$/.test(item)) {
                     if (equation) throw SyntaxError(`Invalid boolean expression: '${equation}' was followed by '${item}'`);
                     if (negate) throw SyntaxError(`Invalid boolean expression: '!' was followed by '${item}'`);
                     equation = item;
-                    break;
-                default:
-                    if (typeof item === "string") {
-                        if (!isNaN(item - 0)) value = item - 0;
-                        else if (/^("|').*("|')$/g.test(item)) value = item.substring(1, item.length - 1);
-                        else value = getTextValue(manager, item);
-                    } else {
-                        value = checkBoolean(manager, item);
-                    }
-                    if (negate) value = !value;
-                    if (result) {
-                        if (!equation) throw SyntaxError(`Invalid boolean expression: expected equation but found '${item}'`);
-                        result = Functions.checkBooleanOperation(result, value, equation);
-                    } else {
-                        if (equation) throw SyntaxError(`Invalid boolean expression: unexpected token '${equation}'`);
-                        result = value;
-                    }
-                    equation = null;
-                    negate = false;
-                    value = null;
-                    break;
+                    continue;
+                } else {
+                    if (!isNaN(item - 0)) value = item - 0;
+                    else if (/^("|').*("|')$/g.test(item)) value = item.substring(1, item.length - 1);
+                    else value = getTextValue(manager, item);
+                }
+            } else {
+                value = checkBoolean(manager, item);
             }
+            if (negate) value = !value;
+            if (result !== null) {
+                if (!equation) throw SyntaxError(`Invalid boolean expression: expected equation but found '${item}'`);
+                result = Functions.checkBooleanOperation(result, value, equation);
+            } else {
+                if (equation) throw SyntaxError(`Invalid boolean expression: unexpected token '${equation}'`);
+                result = value;
+            }
+            equation = null;
+            negate = false;
+            value = null;
         }
         return result;
     }
@@ -446,7 +446,7 @@ if (undefined) var { Functions, Http } = require("../ez");
             negate = !negate;
         }
         var result = getPropertyValue(text, manager.values, manager.scope);
-        return negate ? !result : !!result;
+        return negate ? !result : result;
     }
 
     /**

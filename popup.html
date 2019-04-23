@@ -16,9 +16,9 @@
             <ol class="panel-body" ez-loop="let line in styles[{style}].lines">
                 <li class="line">
                     <button class="close visible-on-hover" ez-click="closeLine({style}, {line})"></button>
-                    <input type="text" name="styles[{style}].lines[{line}]" spellcheck="false" ez-focus="clearHint"
-                        ez-key-up="showHint(styles[{style}], {line})" ez-key-down="onKeyDown({style}, {line}, $)" />
-                    <span class="hint" ez-if="hint">{hint}</span>
+                    <input type="text" name="styles[{style}].lines[{line}]" spellcheck="false" ez-key-up="showHint(styles[{style}], {line}, $.keyCode)"
+                        ez-key-down="onKeyDown({style}, {line}, $)" />
+                    <span class="hint" ez-if="hint && this.previousElementSibling === global.document.activeElement">{hint}</span>
                 </li>
             </ol>
         </div>

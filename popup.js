@@ -6,7 +6,7 @@ if (undefined) var { chrome } = require("./css-builder");
     if (typeof exports !== "undefined" && typeof module !== "undefined") module.exports = factory(exports || {});
     else factory(global.Debug = {});
 })(this, function (exports) {
-    var tempUrl = "", url = "";
+    var tempUrl = "", url = "", currentHints = [], currentHintIndex = 0;
 
     if (!chrome || !chrome.tabs) {
         chrome = {
@@ -43,10 +43,12 @@ if (undefined) var { chrome } = require("./css-builder");
             }
         },
         "tab": function (style, index, start, end, text) {
-            var extra = dto.hint ? dto.hint.length : 1;
-            dto.styles[style].lines[index] = dto.hint ? dto.hint : `${text.substring(0, start)}\t${text.substring(start)}`;
-            focus(style, index, start + extra, end + extra);
-            return true;
+            if (dto.hint) {
+                var extra = dto.hint.length;
+                dto.styles[style].lines[index] = dto.hint
+                focus(style, index, start + extra, end + extra);
+                return true;
+            }
         },
         "enter": function (style, index, start, end, text) {
             dto.styles[style].lines.splice(index + 1, 0, text.substring(start));
@@ -100,7 +102,7 @@ if (undefined) var { chrome } = require("./css-builder");
         dom.selectionEnd = end || start || 0;
     }
 
-    var keys = {
+    var keyBindings = {
         8: "backspace",
         9: "tab",
         13: "enter",
@@ -142,20 +144,25 @@ if (undefined) var { chrome } = require("./css-builder");
             sendRequest({ action: "select", selector: query });
         },
         clearHint: function () {
-            //dto.hint = "";
+            currentHints = [];
+            dto.hint = "";
         },
-        showHint: function (style, line) {
+        showHint: function (style, line, keyCode) {
             var original = style.lines[line], text = original.trim();
-            this.clearHint();
-            if (!text) return;
-            var { 0: match, 1: after } = text.split(":");
+            var { 0: match, 1: after, 2: error } = text.split(":");
+            if (!text || error !== undefined) return;
             if (after !== undefined) var keys = (hints[match] || []), likeParam = after;
             else keys = Object.keys(hints), likeParam = match;
-            var result = keys.find(Functions.createFunction(filterHints, likeParam = trimText(likeParam)));
-            if (result) dto.hint = `${original}${result.substring(likeParam.length)}`;
+            if (keyBindings[keyCode] === "up") var index = currentHintIndex - 1;
+            else if (keyBindings[keyCode] === "down") index = currentHintIndex + 1;
+            else currentHints = keys.filter(Functions.createFunction(filterHints, createRegexp(likeParam = trimText(likeParam))));
+            currentHintIndex = index < 0 ? 0 : currentHints.length <= index ? currentHints.length - 1 : index || 0;
+            var result = currentHints[currentHintIndex], firstPart = result.substring(0, likeParam.length);
+            if (result) var difference = getMatchCount(likeParam, /\d/) - getMatchCount(firstPart, "0") + getMatchCount(likeParam, /\s/) - getMatchCount(firstPart, " ");
+            dto.hint = result ? `${original}${result.substring(likeParam.length - difference)}` : "";
         },
         onKeyDown: function (style, index, event) {
-            if (actions[keys[event.keyCode] || "empty"](style, index, event.target.selectionStart, event.target.selectionEnd, event.target.value)) {
+            if (actions[keyBindings[event.keyCode] || "empty"](style, index, event.target.selectionStart, event.target.selectionEnd, event.target.value)) {
                 event.preventDefault();
             }
         },
@@ -165,9 +172,10 @@ if (undefined) var { chrome } = require("./css-builder");
         closeLine: function (style, index) {
             if (dto.styles[style].lines.length - 1) dto.styles[style].lines.splice(index, 1);
             else dto.styles[style].lines[0] = "";
+            this.clearHint();
         },
         saveAll: function (event) {
-            if (event.ctrlKey && keys[event.keyCode] === "save") this.saveAndRefresh();
+            if (event.ctrlKey && keyBindings[event.keyCode] === "save") this.saveAndRefresh();
         },
         saveAndRefresh: function () {
             updateStyle().then(function () {
@@ -337,19 +345,38 @@ if (undefined) var { chrome } = require("./css-builder");
     /**
      * Delegate that trim a string
      * @param {string} text string to be trimmed
-     * @returns {string}
+     * @returns {string} trimmed text
      */
     function trimText(text) {
         return typeof text === "string" ? text.trim() : text;
     }
 
     /**
-     * 
-     * @param {string} key 
-     * @param  {...Array<string>} params
-     * @returns {boolean} 
+     * Function used to check if a hint matches the current text
+     * @param {string} key name of css property
+     * @param  {...Array<string>} params list of regex parameters and at the end the current text as a regexp
+     * @returns {boolean} the result of the regexp
      */
     function filterHints(key, ...params) {
-        return key.startsWith(params.pop());
+        return params.pop().test(key);
+    }
+
+    /**
+     * Turns the current text of the hint into a regular expression
+     * @param {string} hint current text
+     * @returns {RegExp} text converted to regexp
+     */
+    function createRegexp(hint) {
+        return new RegExp(`^${hint.replace(/\d+/g, "0").replace(/\(/g, "\\(").replace(/\)/g, "\\)").replace(/,/g, ",\s*")}`, "i")
+    }
+
+    /**
+     * 
+     * @param {string} text 
+     * @param {string | RegExp} match 
+     * @returns {number}
+     */
+    function getMatchCount(text, match) {
+        return text.split(match).length - 1;
     }
 });
