@@ -19,11 +19,11 @@
 	font-family: "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
 	border: 1px solid #cccccc;
 	border-bottom-style: none;
+	width: calc(100% - 15px);
 	border-top-style: none;
 	min-width: 180px;
 	padding: 3px 4px;
 	font-size: 15px;
-	width: 100%;
 }
 
 .line input:focus {
