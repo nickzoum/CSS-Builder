@@ -411,11 +411,13 @@ if (undefined) var { Functions, Http } = require("../ez");
                     continue;
                 } else {
                     if (!isNaN(item - 0)) value = item - 0;
-                    else if (/^("|').*("|')$/g.test(item)) value = item.substring(1, item.length - 1);
-                    else value = getTextValue(manager, item);
+                    else if (/^(".*"|'.*')$/g.test(item)) value = item.substring(1, item.length - 1);
+                    else value = getPropertyValue(item, manager.values, manager.scope);
                 }
-            } else {
+            } else if (item instanceof Array) {
                 value = checkBoolean(manager, item);
+            } else {
+                throw Error("U wot?");
             }
             if (negate) value = !value;
             if (result !== null) {
@@ -430,23 +432,6 @@ if (undefined) var { Functions, Http } = require("../ez");
             value = null;
         }
         return result;
-    }
-
-    /**
-     * Gets the troothy of a variable in text form
-     * @param {ViewManager} manager the view manager
-     * @param {string} text the variable in text form
-     * @returns {boolean} the troothy of the value of a property
-     */
-    function getTextValue(manager, text) {
-        text = text.trim();
-        var negate = false;
-        while (text.startsWith("!")) {
-            text = text.substring(1).trim();
-            negate = !negate;
-        }
-        var result = getPropertyValue(text, manager.values, manager.scope);
-        return negate ? !result : result;
     }
 
     /**
@@ -470,6 +455,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      */
     function setPropertyValue(value, propertyPath, values) {
         var container = getPropertyValueContainer(propertyPath, values);
+        if (!container.container) throw Error(`Invalid property ${propertyPath}`);
         container.container[container.index] = value;
     }
 
@@ -482,14 +468,12 @@ if (undefined) var { Functions, Http } = require("../ez");
      */
     function getPropertyValue(propertyPath, values, scope) {
         propertyPath = (propertyPath || "").trim();
-        if (propertyPath.startsWith("!")) var negate = true;
-        if (negate) propertyPath = propertyPath.substring(1).trim();
+        if (propertyPath.startsWith("!")) return !getPropertyValue(propertyPath.substring(1), values, scope);
         if (propertyPath.startsWith("*")) propertyPath = propertyPath.substring((propertyPath.indexOf("*.") + 1 || 0) + 1).trim();
         if (!propertyPath) return values;
         var container = getPropertyValueContainer(propertyPath, values, scope || {});
         if (!container.container) throw Error(`Invalid property ${propertyPath}`);
-        var result = container.container[container.index];
-        return negate ? !result : result;
+        return container.container[container.index];
     }
 
     /**
