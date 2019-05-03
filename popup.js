@@ -1,9 +1,9 @@
-if (undefined) var { chrome } = require("./css-builder");
+if (undefined) var { chrome } = require("./chrome");
 if (undefined) var { hints } = require("./hints.js");
+if (undefined) var { View, Functions } = require("./ez");
 
 (function (global, factory) {
     "use strict";
-    if (typeof hints === "undefined" && typeof require === "function") hints = require("./hints.js");
     if (typeof exports !== "undefined" && typeof module !== "undefined") module.exports = factory(exports || {});
     else factory(global.Debug = {});
 })(this, function (exports) {
@@ -35,7 +35,7 @@ if (undefined) var { hints } = require("./hints.js");
     window.addEventListener("blur", tempSave);
 
     var actions = {
-        "backspace": function (style, index, start, end, text) {
+        "backspace": function (style, index, start, end) {
             if (start === end && !end && index) {
                 var previousSize = dto.styles[style].lines[index - 1].length;
                 dto.styles[style].lines[index - 1] += dto.styles[style].lines.splice(index, 1);
@@ -43,7 +43,7 @@ if (undefined) var { hints } = require("./hints.js");
                 return true;
             }
         },
-        "tab": function (style, index, start, end, text) {
+        "tab": function (style, index, start, end) {
             if (dto.hint) {
                 var extra = dto.hint.length;
                 dto.styles[style].lines[index] = dto.hint;
@@ -57,14 +57,14 @@ if (undefined) var { hints } = require("./hints.js");
             focus(style, index + 1, 0, 0);
             return true;
         },
-        "left": function (style, index, start, end, text) {
+        "left": function (style, index, start) {
             if (!start && index) {
                 var previousSize = dto.styles[style].lines[index - 1].length;
                 focus(style, index - 1, previousSize, previousSize);
                 return true;
             }
         },
-        "up": function (style, index, start, end, text) {
+        "up": function (style, index, start, end) {
             if (index) focus(style, index - 1, start, end);
             else if (style) focus(style - 1, dto.styles[style - 1].lines.length - 1, start, end);
             return true;
@@ -75,7 +75,7 @@ if (undefined) var { hints } = require("./hints.js");
                 return true;
             }
         },
-        "down": function (style, index, start, end, text) {
+        "down": function (style, index, start, end) {
             if (dto.styles[style].lines.length > index + 1) focus(style, index + 1, start, end);
             else if (dto.styles[style + 1] && dto.styles[style + 1].lines.length > index + 1) focus(style + 1, 0, start, end);
             return true;
@@ -152,8 +152,13 @@ if (undefined) var { hints } = require("./hints.js");
             var original = style.lines[line], text = original.trim();
             var { 0: match, 1: after, 2: error } = text.split(":");
             if (!text || error !== undefined) return;
-            if (after !== undefined) var keys = (hints[match] || []), likeParam = after;
-            else keys = Object.keys(hints), likeParam = match;
+            if (after !== undefined) {
+                var keys = (hints[match] || []);
+                var likeParam = after;
+            } else {
+                keys = Object.keys(hints);
+                likeParam = match;
+            }
             if (keyBindings[keyCode] === "up") var index = currentHintIndex - 1;
             else if (keyBindings[keyCode] === "down") index = currentHintIndex + 1;
             else currentHints = keys.filter(Functions.createFunction(filterHints, createRegexp(likeParam = trimText(likeParam))));
@@ -231,7 +236,6 @@ if (undefined) var { hints } = require("./hints.js");
      * @returns {Promise}
      */
     function saveLocal(name, data) {
-        console.log(data);
         return new Promise(function (resolve) {
             var result = {}; result[name] = data;
             chrome.storage.local.set(result, resolve);
@@ -246,7 +250,7 @@ if (undefined) var { hints } = require("./hints.js");
         return new Promise(function (resolve) {
             var localSaved = false, tempSaved = false;
             var data = dto.styles.map(getStyleText).join("") || "";
-            saveLocal(tempUrl, data).then(function () { localSaved = true; if (tempSaved) resolve(); })
+            saveLocal(tempUrl, data).then(function () { localSaved = true; if (tempSaved) resolve(); });
             saveLocal(url, data).then(function () { tempSaved = true; if (localSaved) resolve(); });
         });
     }
@@ -274,7 +278,6 @@ if (undefined) var { hints } = require("./hints.js");
     function getLocal(name) {
         return new Promise(function (resolve) {
             chrome.storage.local.get(name, function (result) {
-                console.log(result);
                 resolve(result[name] || "");
             });
         });
@@ -372,7 +375,7 @@ if (undefined) var { hints } = require("./hints.js");
      * @returns {RegExp} text converted to regexp
      */
     function createRegexp(hint) {
-        return new RegExp(`^${hint.replace(/\d+/g, "0").replace(/\(/g, "\\(").replace(/\)/g, "\\)").replace(/,/g, ",\s*")}`, "i")
+        return new RegExp(`^${hint.replace(/\d+/g, "0").replace(/\(/g, "\\(").replace(/\)/g, "\\)").replace(/,/g, ",s*")}`, "i");
     }
 
     /**
