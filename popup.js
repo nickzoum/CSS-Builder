@@ -1,8 +1,9 @@
 if (undefined) var { chrome } = require("./css-builder");
+if (undefined) var { hints } = require("./hints.js");
 
 (function (global, factory) {
     "use strict";
-    if (typeof hints === "undefined" && typeof require === "function") hints = require("../hints.js");
+    if (typeof hints === "undefined" && typeof require === "function") hints = require("./hints.js");
     if (typeof exports !== "undefined" && typeof module !== "undefined") module.exports = factory(exports || {});
     else factory(global.Debug = {});
 })(this, function (exports) {
@@ -45,7 +46,7 @@ if (undefined) var { chrome } = require("./css-builder");
         "tab": function (style, index, start, end, text) {
             if (dto.hint) {
                 var extra = dto.hint.length;
-                dto.styles[style].lines[index] = dto.hint
+                dto.styles[style].lines[index] = dto.hint;
                 focus(style, index, start + extra, end + extra);
                 return true;
             }
@@ -65,7 +66,7 @@ if (undefined) var { chrome } = require("./css-builder");
         },
         "up": function (style, index, start, end, text) {
             if (index) focus(style, index - 1, start, end);
-            else if (style) focus(style - 1, dto.styles[style - 1].lines.length - 1, start, end)
+            else if (style) focus(style - 1, dto.styles[style - 1].lines.length - 1, start, end);
             return true;
         },
         "right": function (style, index, start, end, text) {
@@ -230,6 +231,7 @@ if (undefined) var { chrome } = require("./css-builder");
      * @returns {Promise}
      */
     function saveLocal(name, data) {
+        console.log(data);
         return new Promise(function (resolve) {
             var result = {}; result[name] = data;
             chrome.storage.local.set(result, resolve);
@@ -272,6 +274,7 @@ if (undefined) var { chrome } = require("./css-builder");
     function getLocal(name) {
         return new Promise(function (resolve) {
             chrome.storage.local.get(name, function (result) {
+                console.log(result);
                 resolve(result[name] || "");
             });
         });
@@ -320,8 +323,10 @@ if (undefined) var { chrome } = require("./css-builder");
                     var list = data.split("}"); list.pop();
                     for (var item of list) {
                         var subList = item.split("{");
-                        var properties = subList[1] ? subList[1].split(";") : ["", ""];
-                        properties.pop(); addStyle(subList[0], properties);
+                        var properties = subList[1] ? subList[1].split(";") : [];
+                        addStyle(subList[0], properties.filter(function (prop) {
+                            return !!prop;
+                        }) || [""]);
                     }
                     if (!subList) addStyle();
                 });

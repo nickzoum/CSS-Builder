@@ -548,7 +548,7 @@ if (undefined) var { Functions, Http } = require("../ez");
      */
     function onEvent(event, actor, callBack, manager, params) {
         if (event.target.hasAttribute("preventDefault")) event.preventDefault();
-        var container = getPropertyValueContainer(callBack, actor, {}), callBack = container.container[container.index];
+        var container = getPropertyValueContainer(callBack, actor, {}); callBack = container.container[container.index];
         callBack.apply(container.container, params.map(Functions.createFunction(getCleanParameter, event, manager)));
     }
 
