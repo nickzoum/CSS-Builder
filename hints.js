@@ -151,6 +151,21 @@ var hints = (function () {
         "Tan"
     ];
 
+    var multiNumber = [
+        "0px",
+        "0%",
+        "0",
+        "0px 0px",
+        "0% 0%",
+        "0 0",
+        "0px 0px 0px",
+        "0% 0% 0%",
+        "0 0 0",
+        "0px 0px 0px 0px",
+        "0% 0% 0% 0%",
+        "0 0 0 0"
+    ];
+
     var defaultList = [
         "inherit",
         "initial",
@@ -213,6 +228,11 @@ var hints = (function () {
         "background": colors,
         "background-color": colors,
         "border": combinations.colorBorderWidth,
+        "border-radius": multiNumber,
+        "border-top-radius": multiNumber,
+        "border-bottom-radius": multiNumber,
+        "border-left-radius": multiNumber,
+        "border-right-radius": multiNumber,
         "border-bottom": combinations.colorBorderWidth,
         "border-color": colors,
         "border-left": combinations.colorBorderWidth,

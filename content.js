@@ -1,10 +1,11 @@
-"use strict";
 (function () {
+    "use strict";
     var baseUrl = document.location.origin, component;
     document.body.addEventListener("click", onNewTarget);
-    chrome.extension.onRequest.addListener(chromeListener);
+    chrome.extension.onMessage.addListener(chromeListener);
     var lastStyle = undefined;
     refresh();
+    console.log("CSS Builder contents.js has been rendered");
     return;
 
     /**
@@ -40,11 +41,12 @@
      */
     function chromeListener(request, sender, sendResponse) {
         if (request.action === "getDOM") console.log({ dom: elemToStyle(component || document.activeElement) });
-        if (request.action === "getDOM") sendResponse({ dom: elemToStyle(component || document.activeElement) });
+        if (request.action === "getDOM") return sendResponse({ dom: elemToStyle(component || document.activeElement) });
         else if (request.action === "select") { freeSelect(); select(request.selector); }
         else if (request.action === "freeSelect") freeSelect();
         else if (request.action === "refresh") refresh();
-        else sendResponse({});
+        else return sendResponse({});
+        sendResponse({});
     }
 
     function refresh() {

@@ -32,7 +32,7 @@ if (undefined) var { View, Functions } = require("./ez");
     }
 
     document.addEventListener("DOMContentLoaded", onDomLoaded);
-    window.addEventListener("blur", tempSave);
+    addEventListener("blur", tempSave);
 
     var actions = {
         "backspace": function (style, index, start, end) {
@@ -118,8 +118,7 @@ if (undefined) var { View, Functions } = require("./ez");
     var dto = {
         styles: [],
         hint: "",
-        showDebug: true,
-        saveData: {}
+        showDebug: true
     };
 
     var actor = {
@@ -164,7 +163,9 @@ if (undefined) var { View, Functions } = require("./ez");
             else if (keyBindings[keyCode] === "down") index = currentHintIndex + 1;
             else currentHints = keys.filter(Functions.createFunction(filterHints, createRegexp(likeParam = trimText(likeParam))));
             currentHintIndex = index < 0 ? 0 : currentHints.length <= index ? currentHints.length - 1 : index || 0;
-            var result = currentHints[currentHintIndex], firstPart = result.substring(0, likeParam.length);
+            var result = currentHints[currentHintIndex];
+            if (result === undefined) return;
+            var firstPart = result.substring(0, likeParam.length);
             if (result) var difference = getMatchCount(likeParam, /\d/) - getMatchCount(firstPart, "0") + getMatchCount(likeParam, /\s/) - getMatchCount(firstPart, " ");
             dto.hint = result ? `${original}${result.substring(likeParam.length - difference)}` : "";
         },
@@ -238,7 +239,6 @@ if (undefined) var { View, Functions } = require("./ez");
      * @returns {Promise}
      */
     function saveLocal(name, data) {
-        dto.saveData = data;
         return new Promise(function (resolve) {
             var result = {}; result[name] = data;
             chrome.storage.local.set(result, resolve);
@@ -307,7 +307,7 @@ if (undefined) var { View, Functions } = require("./ez");
         data = data || { action: undefined };
         return new Promise(function (resolve) {
             getSelectedTab().then(function (tab) {
-                chrome.tabs.sendRequest(tab.id, data, resolve);
+                chrome.tabs.sendMessage(tab.id, data, resolve);
             });
         });
     }
