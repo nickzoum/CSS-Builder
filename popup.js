@@ -118,7 +118,8 @@ if (undefined) var { View, Functions } = require("./ez");
     var dto = {
         styles: [],
         hint: "",
-        showDebug: true
+        showDebug: true,
+        saveData: {}
     };
 
     var actor = {
@@ -204,6 +205,7 @@ if (undefined) var { View, Functions } = require("./ez");
             }
         },
         import: function () {
+            /** @type {HTMLInputElement} */
             var selector = document.querySelector("#selector");
             selector.focus();
             try {
@@ -236,6 +238,7 @@ if (undefined) var { View, Functions } = require("./ez");
      * @returns {Promise}
      */
     function saveLocal(name, data) {
+        dto.saveData = data;
         return new Promise(function (resolve) {
             var result = {}; result[name] = data;
             chrome.storage.local.set(result, resolve);
@@ -290,9 +293,9 @@ if (undefined) var { View, Functions } = require("./ez");
      */
     function getStyleText(style) {
         var stringBuilder = [style.query, "{"];
-        stringBuilder.push(...style.lines.map(trimText));
+        stringBuilder.push(style.lines.map(trimText).join(";"));
         stringBuilder.push("}");
-        return stringBuilder.join("").replace(";;", ";");
+        return stringBuilder.join("").replace(/;+/g, ";");
     }
 
     /**
